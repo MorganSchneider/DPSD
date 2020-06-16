@@ -2,10 +2,11 @@ function [iq_source, signal_type] = choose_source()
 
 [st,~] = dbstack('-completenames',1);
 
-if strcmp(st.name, 'dpsd_bootstrap')
+if strcmp(st.name, 'dpsd_bootstrap') || strcmp(st.name, 'david_test')
     x = input(['Choose I/Q data to use: ', newline,...
         '  (1) iq_emulate', newline,...
-        '  (2) SimRadar', newline]);
+        '  (2) iq_emulate_yu', newline,...
+        '  (3) SimRadar', newline]);
     y = input(['Choose simulation type: ', newline,...
         '  (1) Rain only', newline,...
         '  (2) Debris only', newline,...
@@ -14,6 +15,8 @@ if strcmp(st.name, 'dpsd_bootstrap')
     if x == 1
         iq_source = 'emulator';
     elseif x == 2
+        iq_source = 'emulator_yu';
+    elseif x == 3
         iq_source = 'simradar';
     else
         disp('Try again, asshole!')

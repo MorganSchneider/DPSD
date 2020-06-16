@@ -40,7 +40,7 @@ for a = 1:rlzs
     S_k(1,:) = SHH / sqrt(2*pi*sw^2) .* exp(-(vv - vr).^2 / (2*sw^2));
     S_k(2,:) = SVV / sqrt(2*pi*sw^2) .* exp(-(vv - vr).^2 / (2*sw^2));
     X_k = rand(2,n);
-    y_k = 2*pi*rand(2,n); % uniform random phase
+    y_k = 2*pi*rand(2,n) - pi; % uniform random phase
     
     
     SNR_linear = 10^(SNR/10);
@@ -50,23 +50,47 @@ for a = 1:rlzs
     
     V1 = zeros(M,1);
     V2 = V1;
+    % The signal and noise should each have random phases
     for m = 1:M % generate uncorrelated H/V time series
-        V1(m) = 1/n * sum( sqrt(P_k(1,:)) .* exp(1j*y_k(1,:)) .* exp(-1j*2*pi*(-(M-1):M-1)*m/n) );
-        V2(m) = 1/n * sum( sqrt(P_k(2,:)) .* exp(1j*y_k(2,:)) .* exp(-1j*2*pi*(-(M-1):M-1)*m/n) );
+        % V1(m) = 1/n * sum( sqrt(P_k(1,:)) .* exp(1j*y_k(1,:)) .* exp(-1j*2*pi*(-(M-1):M-1)*m/n) );
+        V1(m) = 1/n * sum( sqrt(N(1)) * exp(1j*y_k(1,:)) .* exp(-1j*2*pi*(-(M-1):M-1)*m/n) + ...
+            sqrt(S_k(1,:)) .* exp(1j*y_k(3,:)) .* exp(-1j*2*pi*(-(M-1):M-1)*m/n) );
+        % V2(m) = 1/n * sum( sqrt(P_k(2,:)) .* exp(1j*y_k(2,:)) .* exp(-1j*2*pi*(-(M-1):M-1)*m/n) );
+        V2(m) = 1/n * sum(sqrt(N(2)) * exp(1j*y_k(2,:)) .* exp(-1j*2*pi*(-(M-1):M-1)*m/n) + ...
+            sqrt(S_k(2,:)) .* exp(1j*y_k(4,:)) .* exp(-1j*2*pi*(-(M-1):M-1)*m/n) );
+    end
+    
+%     rh = abs(mean(V1 .* conj(V2))) ./ sqrt(mean(V1 .* conj(V1)) .* mean(V2 .* conj(V2)));
+%     fprintf(['rh: ', num2str(rh), '\n']);
+    if a == 1
+        figure(175)
+        plot(1:M, real(V1), '-k', 1:M, imag(V1), '--k',...
+            1:M, real(V2), '-b', 1:M, imag(V2), '--b')
+        grid on
     end
     
     
     %------Implement time series partial correlation dependence???-----------
     
-    s1 = sqrt(1/mean(V1.*conj(V1))) * V1; % unit-power
-    s2 = sqrt(1/mean(V2.*conj(V2))) * V2;
+    s1 = sqrt(1 / mean(V1.*conj(V1))) * V1; % unit-power
+    s2 = sqrt(1 / mean(V2.*conj(V2))) * V2;
     
     x1 = sqrt(SHH) * s1;
     % Calculate x2 to be partially correlated with x1 with desired rhoHV
-    x2 = sqrt(SVV) * (phv*s1 + sqrt(1 - phv^2)*s2);
+    x2 = sqrt(SVV) * (phv * s1 + sqrt(1 - phv^2) * s2);
+    
+%     zdr_tmp = 10 * log10(mean(x1.*conj(x1)) ./ mean(x2.*conj(x2)));
+%     fprintf(['zdr: ', num2str(zdr_tmp), '\n']);
     
     V_h(:,a) = x1(:);
     V_v(:,a) = x2(:);
+    
+    if a == 1
+        figure(175)
+        plot(1:M, real(V_h(:,a)), '-k', 1:M, imag(V_h(:,a)), '--k',...
+            1:M, real(V_v(:,a)), '-b', 1:M, imag(V_v(:,a)), '--b')
+        grid on
+    end
     
 end
 
@@ -76,8 +100,8 @@ end
 SHH = mean(V_h .* conj(V_h));
 SVV = mean(V_v .* conj(V_v));
 SXX = mean(V_h .* conj(V_v));
-ZDR = 10*log10(SHH./SVV);
-PHV = abs(SXX) ./ sqrt(SHH.*SVV);
+ZDR = 10 * log10(SHH ./ SVV);
+PHV = abs(SXX) ./ sqrt(SHH .* SVV);
 
 
 
