@@ -46,11 +46,15 @@ function E = bootstrap_dpsd(V, w, N0, NFT, B, K, N)
 % Compute the maximum ratio
 r = 0.5 - sqrt(mean(w.^2))*0.5;
 
+%V.H = permute(V.H, [2 1]);
+%V.V = permute(V.V, [2 1]);
+w = permute(w, [2 1]);
+
 NK = size(V.H, 1); % Number of rows in I/Q - each row can be an independent
                   % signal, a different range gate, etc.
 M = size(V.H, 2); % Number of samples in I/Q 
 
-if isempty(NFT), NFT = M; end;
+if isempty(NFT), NFT = M; end
 
 % Set variables to store the PSDs
 S.H = nan(NK, NFT);

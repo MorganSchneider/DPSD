@@ -3,7 +3,9 @@ clear;
 close all
 clear iqh1 iqh2 iqv1 iqv2 iqh iqv
 
-david_test = true;
+% Compare to Arturo's code!! %%%%%
+
+david_test = false;
 force_debris = true;
 rho_thres = 0.8;
 
@@ -18,19 +20,20 @@ rgmap = feval('boonlib', 'rgmap', 21);
 
 %-----------If using iq_emulate.m------------%
 if strcmp(iq_source, 'emulator')
+    iq_src_abbrev = 'emul';
     
     %---Set desired parameter values---%
     %---CHANGE THESE AS NEEDED!!!---%
-    rlzs = 1000; % Number of time series to emulate
+    rlzs = 100; % Number of time series to emulate
     M = 100; % Number of samples per realization
     S = [30, 30]; % Signal power in dB
-    vr = [-35, 25]; % mean Doppler velocity in m/s
-    sw = [5, 3]; % Doppler spectrum width in m/s
+    vr = [25, -25]; % mean Doppler velocity in m/s
+    sw = [5, 10]; % Doppler spectrum width in m/s
     SNR = 30; % SNR in dB
-    zdr = [5, -5]; % Bulk ZDR in dBZ
-    phv = [0.98, 0.01]; % Bulk rhoHV
+    zdr = [0, 4]; % Bulk ZDR in dBZ
+    phv = [0.98, 0.5]; % Bulk rhoHV
     
-    va = 100; % Nyquist velocity
+    va = 50; % Nyquist velocity
     lambda = 0.1; % wavelength
     Ts = lambda/4/va;
     vv = linspace(-va, va, M);
@@ -48,14 +51,16 @@ if strcmp(iq_source, 'emulator')
     
 %---------If using iq_emulate_yu.m---------%
 elseif strcmp(iq_source, 'emulator_yu')
-    M = 128 - 1;
+    iq_src_abbrev = 'yu';
+    
+    M = 100;
     va = 50;
 %     % vv2 = linspace(-2*va, 2*va, 2*M-1); % For Folding spectra
     vv = linspace(-va, va, M);
     vv2 = vv;
     S1 = 10 ^ (30/10);
     S2 = 10 ^ (30/10);
-    rlzs = 100; % Number of spectra
+    rlzs = 50; % Number of spectra
     sw1 = 10;
     sw2 = 5;
     vr1 = -25;
@@ -142,6 +147,16 @@ elseif strcmp(iq_source, 'emulator_yu')
     
     [V_h, V_v, ZDR_bulk, PHV_bulk] = iq_emulate_yu(Sv, sphv, szdr_linear, rlzs);
     % Time series output needs to be of format (N_samples, N_realizations)
+    %
+    % Calculate error (RMSE) between specified and estimated DPSDs & play
+    % with parameters like rlzs, etc
+    % Check high and low rhoHV
+    % Averaging over time to smooth (averaging "chunks" of time series
+    % points)
+    % Small azimuthal change (-0.5-0.5 degrees) and lots of pulses (like
+    % 10000 pulses) to keep signal from decorrelating, then average over
+    % dwells
+    
     
     iqh = V_h;
     iqv = V_v;
@@ -152,25 +167,29 @@ elseif strcmp(iq_source, 'emulator_yu')
 
 %---------If using SimRadar I/Q data---------%
 elseif strcmp(iq_source, 'simradar')
+    iq_src_abbrev = 'simradar';
     
     if strcmp(signal_type, 'rain')
         if david_test
-            filename = 'suctvort_rain'; % Same simulation as deb4_10000, but without debris
+            filename = 'suctvort_rain.mat'; % Same simulation as deb4_10000, but without debris
         else
-            filename = '~/Documents/sims/suctvort/200326/nodebris/sim-PPI0.5-DU-nodebris';
+            sim_dir = '~/Documents/code/DPSD/test_sims/rain';
+            filename = blib('choosefile', sim_dir, '*.mat');
         end
-        load([filename '.mat']);
+        load(filename);
         force_debris = 0; % Turn force_debris off if selected
     elseif strcmp(signal_type, 'debris')
-        filename = '~/Documents/sims/suctvort/200326/debris3/sim-PPI0.5-TCU-d3n100000';
-        load([filename '.mat']);
+        sim_dir = '~/Documents/code/DPSD/test_sims/debris';
+        filename = blib('choosefile', sim_dir, '*.mat');
+        load(filename);
     elseif strcmp(signal_type, 'multi')
         if david_test
-            filename = 'suctvort_test';
+            filename = 'suctvort_test.mat';
         else
-            filename = '~/Documents/sims/suctvort/200326/debris3/sim-PPI0.5-DCU-d3n100000';
+            sim_dir = '~/Documents/code/DPSD/test_sims/multi';
+            filename = blib('choosefile', sim_dir, '*.mat');
         end
-        load([filename '.mat']);
+        load(filename);
     end
     
     M = size(iqh, 3);
@@ -183,6 +202,9 @@ elseif strcmp(iq_source, 'simradar')
     iqh_full = iqh;
     iqv_full = iqv;
     rhohv_test = 1;
+    
+    % CHange to loop through all points!!! %%%%% 
+    
     if force_debris
         while rhohv_test > rho_thres
             r_ind = randsample(size(iqh,1), 1); % randomly pull from SimRadar output
@@ -231,7 +253,7 @@ elseif strcmp(iq_source, 'simradar')
     axis off
 end
 
-%------------------------
+%% ------------------------
 
 % Choose data window
 % d = hamming(M);
@@ -269,14 +291,14 @@ yyaxis right
 plot(-vv, abs(SXF) ./ sqrt(SHF .* SVF), '--k')
 ylabel('S(\rho_{HV})', 'FontSize', 14)
 
-% Figure out how to ?????????
+print(['~/Documents/imgs/DPSD/' iq_src_abbrev '_' signal_type '_oldDPSD'], '-dpng')
 
 Rxx_mat = zeros(2*M-1, rlzs);
-Sxx_mat = Rxx_mat;
 for n = 1:rlzs
     [Rxx_mat(:,n), ~] = xcorr(squeeze(iqh(:,n))); % ACF
-    Sxx_mat(:,n) = fftshift(fft(Rxx_mat(:,n))); % PSD
 end
+Sxx_mat = fftshift(fft(Rxx_mat, 2*M-1, 1), 1);
+
 inds_2s = -(M-1):(M-1);
 lags = inds_2s * Ts;
 
@@ -318,6 +340,9 @@ iqv_R = CX_R .* iqv(2:M, :);
 XH = [iqh_L; iqh; iqh_R];
 XV = [iqv_L; iqv; iqv_R];
 
+V = struct('H', iqh, 'V', iqv);
+N0 = struct('H', 1, 'V', 1);
+
 % XH = [sqrt(R0h ./ mean(iqh_L.*conj(iqh_L),1)) .* iqh_L;
 %     iqh;
 %     sqrt(R0h ./ mean(iqh_R.*conj(iqh_R),1)) .* iqh_R]; % combine into extended H and V time series
@@ -343,7 +368,7 @@ legend('H', 'V', 'Location', 'northeast')
 subplot(2,2,3)
 semilogy(lags, abs(Rxx))
 axis square
-if strcmp(iq_source, 'emulator')
+if strcmp(iq_source, 'emulator_yu')
     title(['Mean ACF (' num2str(rlzs) ' rlzs)'])
 elseif strcmp(iq_source, 'simradar')
     title('ACF')
@@ -354,17 +379,18 @@ subplot(2,2,4)
 semilogy(vv, abs(Sxx))
 axis square
 xlim([-va va])
-if strcmp(iq_source, 'emulator')
+if strcmp(iq_source, 'emulator_yu')
     title(['Mean PSD (' num2str(rlzs) ' rlzs)'])
 elseif strcmp(iq_source, 'simradar')
     title('PSD')
 end
 xlabel('Doppler velocity {\it v_r}')
 
+print(['~/Documents/imgs/DPSD/' iq_src_abbrev '_' signal_type '_TS-ACF-PSD'], '-dpng')
 
 
 % Maximum ratio of corrected samples
-a = 1/M * sum( (d/max(d)).^2 );
+a = 1/M * sum( (d/max(d)).^2 ); % this is different in Arturo's code!!!
 rmax = (1 - sqrt(a)) / 2;
 
 cor = [ones(M-1,1); zeros(M,1); ones(M-1,1)];
@@ -394,6 +420,8 @@ hold off
 title('Extended time series bootstrapping domain')
 xlabel('Original time series', 'Color', [0.25 0.50 0.25])
 legend('H', 'V', 'Location', 'northeast')
+
+print(['~/Documents/imgs/DPSD/' iq_src_abbrev '_' signal_type '_bootstrapdomain'], '-dpng')
 
 
 % Bootstrap
@@ -437,9 +465,9 @@ end
 
 % Bias correction
 if K == 1
-    b = ((1-rmax)^(-3.3)) - 2*((1-rmax)^1.1);
+    b = (1-rmax)^-3.3 - 2*(1-rmax)^1.1;
 elseif K > 1
-    b = ((1-rmax)^(-4.5)) - ((1-rmax)^(-2.1));
+    b = (1-rmax)^-4.5 - (1-rmax)^-2.1;
 end
 
 sZDR_corr = sZDR .* (1 - ((1/b/K) * (1 - sPHV.^2)));
@@ -467,11 +495,26 @@ sPHV_f = sort_mat(:, 2*K+3);
 sZDR_corr_f = sort_mat(:, 2*K+4);
 sPHV_corr_f = sort_mat(:, 2*K+5);
 
+sPHV_corr_f(sPHV_corr_f < 0) = 0;
+
+%E = bootstrap_dpsd(V, d, N0, [], K, rlzs, 1);
+
+%%
 
 % plot ZDR spectrum
 figure(3)
 subplot(2,2,1)
-semilogy(vv, mean(abs(sSH_f), 2))
+yyaxis left
+semilogy(vv, mean(abs(sSH_f), 2), 'k', 'LineWidth', 1)
+xlabel('Doppler velocity {\it v_r}')
+ylabel('PSD')
+yyaxis right
+plot(vv, 10*log10(sZDR_f), 'b')
+% hold on
+% plot(-vv, 10*log10(E.sD), 'r')
+% hold off
+ylim([-20 20])
+ylabel('sZDR')
 xlim([-va va])
 axis square
 grid on
@@ -479,7 +522,17 @@ title(['Mean H-channel PSD ({\it K}=', num2str(K), ')'])
 xlabel('Doppler velocity {\it v_r}')
 
 subplot(2,2,2)
-semilogy(vv, mean(abs(sSV_f), 2))
+yyaxis left
+semilogy(vv, mean(abs(sSV_f), 2), 'k', 'LineWidth', 1)
+xlabel('Doppler velocity {\it v_r}')
+ylabel('PSD')
+yyaxis right
+plot(vv, 10*log10(sZDR_f), 'b')
+% hold on
+% plot(-vv, 10*log10(E.sD), 'r')
+% hold off
+ylim([-20 20])
+ylabel('sZDR')
 xlim([-va va])
 axis square
 grid on
@@ -487,22 +540,30 @@ title(['Mean V-channel PSD ({\it K}=', num2str(K), ')'])
 xlabel('Doppler velocity {\it v_r}')
 
 subplot(2,2,3)
-plot(vv, 10*log10(sZDR_f))
+plot(vv, 10*log10(sZDR_f), 'b')
+% hold on
+% plot(-vv, 10*log10(E.sD), 'r')
+% hold off
 xlim([-va, va])
-ylim([-6 6])
+ylim([-20 20])
 axis square
 grid on
 title('{\it s}Z_{DR}({\it v_r}) in dBZ')
 xlabel('Doppler velocity {\it v_r}')
 
 subplot(2,2,4)
-plot(vv, 10*log10(sZDR_corr_f))
+plot(vv, 10*log10(sZDR_corr_f), 'b')
+% hold on
+% plot(-vv, 10*log10(E.sD), 'r')
+% hold off
 xlim([-va, va])
-ylim([-6 6])
+ylim([-20 20])
 axis square
 grid on
 title('Bias-corrected {\it s}Z_{DR}({\it v_r}) in dBZ')
 xlabel('Doppler velocity {\it v_r}')
+
+print(['~/Documents/imgs/DPSD/' iq_src_abbrev '_' signal_type '_sZDR'], '-dpng')
 
 
 % plot rhoHV spectrum
@@ -516,18 +577,32 @@ figure(4)
 % xlabel('Doppler velocity {\it v_r}')
 subplot(2,2,1)
 yyaxis left
-plot(vv, 10*log10(mean(abs(sSH_f), 2)))
+semilogy(vv, mean(abs(sSH_f), 2), 'k', 'LineWidth', 1)
 xlabel('Doppler velocity {\it v_r}')
-ylabel('PSD (dB)')
+ylabel('PSD')
 yyaxis right
-plot(vv, sPHV_f)
+plot(vv, sPHV_f, 'b')
+% hold on
+% plot(-vv, E.sR, 'r')
+% hold off
 ylim([0 1])
 ylabel('sPHV')
+axis square
 grid on
+title(['Mean H-channel PSD ({\it K}=', num2str(K), ')'])
 
 
 subplot(2,2,2)
-semilogy(vv, mean(abs(sSV_f), 2))
+yyaxis left
+semilogy(vv, mean(abs(sSV_f), 2), 'k', 'LineWidth', 1)
+ylabel('PSD')
+yyaxis right
+plot(vv, sPHV_f, 'b')
+% hold on
+% plot(-vv, E.sR, 'r')
+% hold off
+ylim([0 1])
+ylabel('sPHV')
 xlim([-va va])
 axis square
 grid on
@@ -535,7 +610,10 @@ title(['Mean V-channel PSD ({\it K}=', num2str(K), ')'])
 xlabel('Doppler velocity {\it v_r}')
 
 subplot(2,2,3)
-plot(vv, sPHV_f)
+plot(vv, sPHV_f, 'b')
+% hold on
+% plot(-vv, E.sR, 'r')
+% hold off
 xlim([-va, va])
 ylim([0 1])
 axis square
@@ -544,7 +622,10 @@ title('{\it s}\rho_{HV}({\it v_r})')
 xlabel('Doppler velocity {\it v_r}')
 
 subplot(2,2,4)
-plot(vv, sPHV_corr_f)
+plot(vv, sPHV_corr_f, 'b')
+% hold on
+% plot(-vv, E.sR, 'r')
+% hold off
 xlim([-va, va])
 ylim([0 1])
 axis square
@@ -552,3 +633,34 @@ grid on
 title('Bias-corrected {\it s}\rho_{HV}({\it v_r})')
 xlabel('Doppler velocity {\it v_r}')
 
+print(['~/Documents/imgs/DPSD/' iq_src_abbrev '_' signal_type '_sPHV'], '-dpng')
+
+
+% figure(5)
+% 
+% subplot(1,2,1)
+% plot(vv, 10*log10(sZDR_corr_f) - 10*log10(flip(E.sD(:))))
+% title(['\DeltasZ_{DR} (K=' num2str(K) ')'])
+% xlim([-va va])
+% ylim([-20 20])
+% axis square
+% grid on
+% 
+% subplot(1,2,2)
+% plot(vv, sPHV_corr_f - flip(E.sR(:)))
+% title(['\Deltas\rho_{HV} (K=' num2str(K) ')'])
+% xlim([-va va])
+% ylim([-1 1])
+% axis square
+% grid on
+
+
+
+% save variables into .mat file
+
+% save([sim_dir title_str(1:end-3) '.mat'], 'dat', 'az_rad', 'r', 'el_rad', 'iqh', 'iqv', 'zh', 'zv', 'vr', 'zdr', 'rhohv', 'xx', 'yy', 'zz');
+% 
+% filename = erase(filename, [sim_dir '/']);
+% save_fname
+% save(['~/Documents/code/DPSD/dpsd_outputs/' iq_src_abbrev '/' signal_type '/' '.mat'], 'filename', 'sZDR_f', 'sZDR_corr_f', 'sPHV_f', 'sPHV_corr_f');
+% 

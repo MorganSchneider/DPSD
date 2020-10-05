@@ -1,3 +1,6 @@
 *.DS_Store
 *.m~
 *.mat
+*.iq
+*.simstate
+~/Documents/code/DPSD/test_sims/*

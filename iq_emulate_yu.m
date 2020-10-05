@@ -5,15 +5,17 @@ function [V_h, V_v, ZDR, PHV] = iq_emulate_yu(Sv, sphv, szdr, K)
     M = max(size(Sv));
     debug_flag = true;
     
+    Zv = zeros(K,M);
+    
     for k = 1:K
         rand_u = rand(1,M);
         rand_phi = rand(1,M) * 2 * pi - pi;
-        Zv(k,:) = sqrt(-Sv .* log(rand_u)) .* exp(1i * rand_phi);
+        Zv(k,:) = sqrt(-Sv .* log(rand_u)) .* exp(1i .* rand_phi);
         
         % Requires second independent realization of Zv
         rand_u = rand(1,M);
         rand_phi = rand(1,M) * 2 * pi - pi;
-        Zv2 = sqrt(-Sv .* log(rand_u)) .* exp(1i * rand_phi);
+        Zv2 = sqrt(-Sv .* log(rand_u)) .* exp(1i .* rand_phi);
         
         Zh(k,:) = sqrt(szdr) .* (sphv .* Zv(k,:) + sqrt(1-sphv.^2) .* Zv2);
         V_h(k,:) = ifft(fftshift(Zh(k,:)), M);

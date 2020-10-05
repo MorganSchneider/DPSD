@@ -40,7 +40,7 @@ for a = 1:rlzs
     S_k(1,:) = SHH / sqrt(2*pi*sw^2) .* exp(-(vv - vr).^2 / (2*sw^2));
     S_k(2,:) = SVV / sqrt(2*pi*sw^2) .* exp(-(vv - vr).^2 / (2*sw^2));
     X_k = rand(2,n);
-    y_k = 2*pi*rand(2,n) - pi; % uniform random phase
+    y_k = 2*pi*rand(4,n) - pi; % uniform random phase
     
     
     SNR_linear = 10^(SNR/10);

@@ -1,5 +1,5 @@
 %% Load example KOUN 5/20/2013 data
-load('ex_data.mat');
+load('~/Documents/code/DPSD/arturo-code/ex_data.mat');
 
 dr = 250;
 va = 27.5;
@@ -134,7 +134,7 @@ imagesc(v_axis, r_unique, sp1);
 set(gca,'ydir','normal');
 colormap(boonlib('zmap'));
 caxis([0 80]);
-freezeColors;
+%freezeColors;
 set(gca, 'fontsize', 14);
 xlabel('Radial velocity (m/s)', 'fontsize', 14);
 ylabel('Range (km)', 'fontsize', 14);
@@ -145,7 +145,7 @@ imagesc(v_axis, r_unique, sp2);
 set(gca,'ydir','normal');
 colormap(boonlib('zmap'));
 caxis([0 80]);
-freezeColors;
+%freezeColors;
 set(gca, 'fontsize', 14);
 xlabel('Radial velocity (m/s)', 'fontsize', 14);
 ylabel('Range (km)', 'fontsize', 14);
@@ -154,9 +154,9 @@ title('sSNR_V (dB)')
 figure(3);
 imagesc(v_axis, r_unique, sp3);
 set(gca,'ydir','normal');
-colormap(dmap_wsr(256));
+colormap(dmap(256));
 caxis([-5 8]);
-freezeColors;
+%freezeColors;
 set(gca, 'fontsize', 14);
 xlabel('Radial velocity (m/s)', 'fontsize', 14);
 ylabel('Range (km)', 'fontsize', 14);
@@ -165,7 +165,7 @@ title('sZ_{DR} (dB)')
 figure(4);
 imagesc(v_axis, r_unique, sp4);
 set(gca,'ydir','normal');
-colormap(rmap_wsr(256));
+colormap(rmap(256));
 caxis([0.1 1.05]);
 set(gca, 'fontsize', 14);
 xlabel('Radial velocity (m/s)', 'fontsize', 14);
