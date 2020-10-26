@@ -3,8 +3,6 @@ clear;
 close all
 clear iqh1 iqh2 iqv1 iqv2 iqh iqv
 
-% Compare to Arturo's code!!
-
 plot_save_flag = 0; % set plot_save_flag = 1 to save plots from this script
 K = 20; % number of bootstrapped pseudorealizations
 
@@ -131,7 +129,7 @@ elseif strcmp(iq_source, 'simradar')
     iqv = permute(iqv, [3 1 2]);
     
     M = size(iqh, 1);
-    rlzs = size(iqh,2) * size(iqh,3);
+    rlzs = 1;
     
     lambda = dat.params.lambda;
     Ts = dat.params.prt;
@@ -188,7 +186,9 @@ yyaxis right
 plot(vvx, abs(SXF(:,ind2)) ./ sqrt(SHF(:,ind2) .* SVF(:,ind2)), '--k')
 ylabel('S(\rho_{HV})', 'FontSize', 14)
 
-print(['~/Documents/imgs/DPSD/' iq_src_abbrev '_' signal_type '_oldDPSD'], '-dpng')
+if plot_save_flag
+    print(['~/Documents/imgs/DPSD/' iq_src_abbrev '_' signal_type '_oldDPSD'], '-dpng')
+end
 
 Rxx_mat = zeros(2*M-1, dm2, dm3);
 for m = 1:dm2
@@ -262,9 +262,9 @@ elseif strcmp(iq_source, 'simradar')
     title('Sample PSD')
 end
 xlabel('Doppler velocity {\it v_r}')
-
-print(['~/Documents/imgs/DPSD/' iq_src_abbrev '_' signal_type '_TS-ACF-PSD'], '-dpng')
-
+if plot_save_flag
+    print(['~/Documents/imgs/DPSD/' iq_src_abbrev '_' signal_type '_TS-ACF-PSD'], '-dpng')
+end
 
 % Maximum ratio of corrected samples
 a = mean((d/max(d)).^2); % this is slightly different in Arturo's code!!!
@@ -298,8 +298,9 @@ title('Extended time series bootstrapping domain')
 xlabel('Original time series', 'Color', [0.25 0.50 0.25])
 legend('H', 'V', 'Location', 'northeast')
 
-print(['~/Documents/imgs/DPSD/' iq_src_abbrev '_' signal_type '_bootstrapdomain'], '-dpng')
-
+if plot_save_flag
+    print(['~/Documents/imgs/DPSD/' iq_src_abbrev '_' signal_type '_bootstrapdomain'], '-dpng')
+end
 
 % Bootstrap
 j = randsample(block_start_inds, K, true); % bootstrap!
@@ -327,9 +328,9 @@ for n = 1:K
 end
 ZH = fftshift(ZH,1);
 ZV = fftshift(ZV,1);
-sSH.ms = mean(ZH.*conj(ZH) / (M*R0_d), 2);
-sSV.ms = mean(ZV.*conj(ZV) / (M*R0_d), 2);
-sSX.ms = mean(ZH.*conj(ZV) / (M*R0_d), 2);
+sSH.ms = squeeze(mean(ZH.*conj(ZH) / (M*R0_d), 2));
+sSV.ms = squeeze(mean(ZV.*conj(ZV) / (M*R0_d), 2));
+sSX.ms = squeeze(mean(ZH.*conj(ZV) / (M*R0_d), 2));
 
 % Compute DPSD estimates
 sZDR.ms = sSH.ms ./ sSV.ms;
@@ -345,15 +346,16 @@ end
 sZDR.c = sZDR.ms .* (1 - ((1/b/rlzs) * (1 - (sPHV.ms).^2)));
 sPHV.c = sPHV.ms .* (1 - ((1/b/rlzs) * (1 - (sPHV.ms).^2).^2 ./ (4*(sPHV.ms).^2)));
 sPHV.c(sPHV.c < 0) = 0;
+sZDR.c(sZDR.c < 0) = nan;
 
 % Average over independent rlzs
 if dm3 == 1
-    sSH.f = mean(sSH.ms, 2);
-    sSV.f = mean(sSV.ms, 2);
-    sZDR.f = mean(sZDR.ms, 2);
-    sPHV.f = mean(sPHV.ms, 2);
-    sZDR.cf = mean(sZDR.c, 2);
-    sPHV.cf = mean(sPHV.c, 2);
+    sSH.f = squeeze(mean(sSH.ms, 2));
+    sSV.f = squeeze(mean(sSV.ms, 2));
+    sZDR.f = squeeze(mean(sZDR.ms, 2));
+    sPHV.f = squeeze(mean(sPHV.ms, 2));
+    sZDR.cf = squeeze(mean(sZDR.c, 2));
+    sPHV.cf = squeeze(mean(sPHV.c, 2));
 else
     sSH.f = sSH.ms;
     sSV.f = sSV.ms;
@@ -364,33 +366,33 @@ else
 end
 
 
-% Compare to Arturo's code
-if dm3 > 1
-    iqh_tmp = reshape(iqh, [M dm2*dm3]);
-    iqv_tmp = reshape(iqv, [M dm2*dm3]);
-else
-    iqh_tmp = iqh;
-    iqv_tmp = iqv;
-end
-iqh_tmp = permute(iqh_tmp, [2 1]);
-iqv_tmp = permute(iqv_tmp, [2 1]);
-V = struct('H', iqh_tmp, 'V', iqv_tmp);
-N0 = struct('H', 1, 'V', 1);
-
-E = bootstrap_dpsd(V, d, N0, [], K, 1, rlzs);
-E.sD = permute(E.sD, [2 1]);
-E.sR = permute(E.sR, [2 1]);
-if dm3 > 1
-    sZDR.au = reshape(E.sD, [M dm2 dm3]);
-    sPHV.au = reshape(E.sR, [M dm2 dm3]);
-    sZDR.auf = sZDR.au;
-    sPHV.auf = sPHV.au;
-else
-    sZDR.au = E.sD;
-    sPHV.au = E.sR;
-    sZDR.auf = mean(sZDR.au, 2);
-    sPHV.auf = mean(sPHV.au, 2);
-end
+% % Compare to Arturo's code
+% if dm3 > 1
+%     iqh_tmp = reshape(iqh, [M dm2*dm3]);
+%     iqv_tmp = reshape(iqv, [M dm2*dm3]);
+% else
+%     iqh_tmp = iqh;
+%     iqv_tmp = iqv;
+% end
+% iqh_tmp = permute(iqh_tmp, [2 1]);
+% iqv_tmp = permute(iqv_tmp, [2 1]);
+% V = struct('H', iqh_tmp, 'V', iqv_tmp);
+% N0 = struct('H', 1, 'V', 1);
+% 
+% E = bootstrap_dpsd(V, d, N0, [], K, 1, dm2*dm3);
+% E.sD = permute(E.sD, [2 1]);
+% E.sR = permute(E.sR, [2 1]);
+% if dm3 > 1
+%     sZDR.au = reshape(E.sD, [M dm2 dm3]);
+%     sPHV.au = reshape(E.sR, [M dm2 dm3]);
+%     sZDR.auf = sZDR.au;
+%     sPHV.auf = sPHV.au;
+% else
+%     sZDR.au = E.sD;
+%     sPHV.au = E.sR;
+%     sZDR.auf = squeeze(mean(sZDR.au, 2));
+%     sPHV.auf = squeeze(mean(sPHV.au, 2));
+% end
 
 %
 %
@@ -407,9 +409,10 @@ xlabel('Doppler velocity {\it v_r}')
 ylabel('PSD')
 yyaxis right
 plot(vvx, 10*log10(sZDR.f(:,ind1,ind2)), '-b')
-hold on
-plot(vvx, 10*log10(sZDR.auf(:,ind1,ind2)), '-r')
-hold off
+% hold on
+% plot(vvx, 10*log10(sZDR.auf(:,ind1,ind2)), '-r')
+% hold off
+% legend('PSD', 'morgan DPSD', 'arturo DPSD', 'Location', 'southwest')
 ylim([-10 10])
 ylabel('sZ_{DR}')
 xlim([-va va])
@@ -417,7 +420,7 @@ axis square
 grid on
 title(['Mean H-channel PSD, sZ_{DR} ({\it K}=', num2str(K), ')'])
 xlabel('Doppler velocity {\it v_r}')
-legend('PSD', 'morgan DPSD', 'arturo DPSD', 'Location', 'southwest')
+
 
 subplot(2,2,2)
 yyaxis left
@@ -426,9 +429,9 @@ xlabel('Doppler velocity {\it v_r}')
 ylabel('PSD')
 yyaxis right
 plot(vvx, 10*log10(sZDR.f(:,ind1,ind2)), '-b')
-hold on
-plot(vvx, 10*log10(sZDR.auf(:,ind1,ind2)), '-r')
-hold off
+% hold on
+% plot(vvx, 10*log10(sZDR.auf(:,ind1,ind2)), '-r')
+% hold off
 ylim([-10 10])
 ylabel('sZ_{DR}')
 xlim([-va va])
@@ -439,9 +442,9 @@ xlabel('Doppler velocity {\it v_r}')
 
 subplot(2,2,3)
 plot(vvx, 10*log10(sZDR.f(:,ind1,ind2)), 'b')
-hold on
-plot(vvx, 10*log10(sZDR.auf(:,ind1,ind2)), 'r')
-hold off
+% hold on
+% plot(vvx, 10*log10(sZDR.auf(:,ind1,ind2)), 'r')
+% hold off
 xlim([-va, va])
 ylim([-10 10])
 axis square
@@ -451,9 +454,9 @@ xlabel('Doppler velocity {\it v_r}')
 
 subplot(2,2,4)
 plot(vvx, 10*log10(sZDR.cf(:,ind1,ind2)), 'b')
-hold on
-plot(vvx, 10*log10(sZDR.auf(:,ind1,ind2)), 'r')
-hold off
+% hold on
+% plot(vvx, 10*log10(sZDR.auf(:,ind1,ind2)), 'r')
+% hold off
 xlim([-va, va])
 ylim([-10 10])
 axis square
@@ -462,9 +465,9 @@ title('Bias-corrected {\it s}Z_{DR}({\it v_r}) in dBZ')
 xlabel('Doppler velocity {\it v_r}')
 
 set(gcf, 'Units', 'Inches', 'Position', [2 2 12 10])
-
-print(['~/Documents/imgs/DPSD/' iq_src_abbrev '_' signal_type '_sZDR'], '-dpng')
-
+if plot_save_flag
+    print(['~/Documents/imgs/DPSD/' iq_src_abbrev '_' signal_type '_sZDR'], '-dpng')
+end
 
 % plot rhoHV spectrum
 figure(4)
@@ -475,15 +478,15 @@ xlabel('Doppler velocity {\it v_r}')
 ylabel('PSD')
 yyaxis right
 plot(vvx, sPHV.f(:,ind1,ind2), '-b')
-hold on
-plot(vvx, sPHV.auf(:,ind1,ind2), '-r')
-hold off
+% hold on
+% plot(vvx, sPHV.auf(:,ind1,ind2), '-r')
+% hold off
+% legend('PSD', 'morgan DPSD', 'arturo DPSD', 'Location', 'southwest')
 ylim([0 1])
 ylabel('s\rho_{HV}')
 axis square
 grid on
 title(['Mean H-channel PSD, s\rho_{HV} ({\it K}=', num2str(K), ')'])
-legend('PSD', 'morgan DPSD', 'arturo DPSD', 'Location', 'southwest')
 
 subplot(2,2,2)
 yyaxis left
@@ -491,9 +494,9 @@ semilogy(vvx, abs(sSV.f(:,ind1,ind2)), 'k', 'LineWidth', 1)
 ylabel('PSD')
 yyaxis right
 plot(vvx, sPHV.f(:,ind1,ind2), '-b')
-hold on
-plot(vvx, sPHV.auf(:,ind1,ind2), '-r')
-hold off
+% hold on
+% plot(vvx, sPHV.auf(:,ind1,ind2), '-r')
+% hold off
 ylim([0 1])
 ylabel('s\rho_{HV}')
 xlim([-va va])
@@ -504,9 +507,9 @@ xlabel('Doppler velocity {\it v_r}')
 
 subplot(2,2,3)
 plot(vvx, sPHV.f(:,ind1,ind2), 'b')
-hold on
-plot(vvx, sPHV.auf(:,ind1,ind2), 'r')
-hold off
+% hold on
+% plot(vvx, sPHV.auf(:,ind1,ind2), 'r')
+% hold off
 xlim([-va, va])
 ylim([0 1])
 axis square
@@ -516,9 +519,9 @@ xlabel('Doppler velocity {\it v_r}')
 
 subplot(2,2,4)
 plot(vvx, sPHV.cf(:,ind1,ind2), 'b')
-hold on
-plot(vvx, sPHV.auf(:,ind1,ind2), 'r')
-hold off
+% hold on
+% plot(vvx, sPHV.auf(:,ind1,ind2), 'r')
+% hold off
 xlim([-va, va])
 ylim([0 1])
 axis square
@@ -528,49 +531,50 @@ xlabel('Doppler velocity {\it v_r}')
 
 set(gcf, 'Units', 'Inches', 'Position', [2 2 12 10])
 
-print(['~/Documents/imgs/DPSD/' iq_src_abbrev '_' signal_type '_sPHV'], '-dpng')
+if plot_save_flag
+    print(['~/Documents/imgs/DPSD/' iq_src_abbrev '_' signal_type '_sPHV'], '-dpng')
+end
 
-
-figure(5)
-
-subplot(1,2,1)
-yyaxis left
-semilogy(vvx, abs(sSH.f(:,ind1,ind2)), 'k', 'LineWidth', 1)
-xlabel('Doppler velocity {\it v_r}')
-ylabel('PSD')
-yyaxis right
-plot(vvx, mean(10*log10(sZDR.cf) - 10*log10(sZDR.auf), 2), 'b')
-ylabel('sZ_{DR}')
-title(['\DeltasZ_{DR} (K=' num2str(K) ')'])
-xlim([-va va])
-ylim([-10 10])
-axis square
-grid on
-
-subplot(1,2,2)
-yyaxis left
-semilogy(vvx, abs(sSH.f(:,ind1,ind2)), 'k', 'LineWidth', 1)
-xlabel('Doppler velocity {\it v_r}')
-ylabel('PSD')
-yyaxis right
-plot(vvx, mean(sPHV.cf - sPHV.auf, 2), 'b')
-ylabel('s\rho_{HV}')
-title(['\Deltas\rho_{HV} (K=' num2str(K) ')'])
-xlim([-va va])
-ylim([-1 1])
-axis square
-grid on
-
-
-
-% % Save variables into .mat file
-% if strcmp(iq_source, 'simradar')
-%     filename = erase(filename, [sim_dir '/']);
-%     save_fname = ['DPSD_' filename(1:end-4)];
-% else
-%     save_fname = ['DPSD_lastrun-emulator-K' num2str(K)];
-% end
+% figure(5)
 % 
-% save(['~/Documents/code/DPSD/dpsd_outputs/' iq_src_abbrev '/' signal_type '/' save_fname '.mat'],...
-%     'sZDR', 'sPHV', 'sSH', 'sSV', 'sSX', 'iqh', 'iqv', 'vvx', 'd', 'params');
+% subplot(1,2,1)
+% yyaxis left
+% semilogy(vvx, abs(sSH.f(:,ind1,ind2)), '-k', 'LineWidth', 1)
+% xlabel('Doppler velocity {\it v_r}')
+% ylabel('PSD')
+% yyaxis right
+% plot(vvx, squeeze(mean(10*log10(sZDR.cf(:,ind1,ind2)) - 10*log10(sZDR.auf(:,ind1,ind2)), 2)), '-b')
+% ylabel('sZ_{DR}')
+% title(['\DeltasZ_{DR} (K=' num2str(K) ')'])
+% xlim([-va va])
+% ylim([-10 10])
+% axis square
+% grid on
+% 
+% subplot(1,2,2)
+% yyaxis left
+% semilogy(vvx, abs(sSH.f(:,ind1,ind2)), '-k', 'LineWidth', 1)
+% xlabel('Doppler velocity {\it v_r}')
+% ylabel('PSD')
+% yyaxis right
+% plot(vvx, squeeze(mean(sPHV.cf(:,ind1,ind2) - sPHV.auf(:,ind1,ind2), 2)), '-b')
+% ylabel('s\rho_{HV}')
+% title(['\Deltas\rho_{HV} (K=' num2str(K) ')'])
+% xlim([-va va])
+% ylim([-1 1])
+% axis square
+% grid on
+
+
+
+% Save variables into .mat file
+if strcmp(iq_source, 'simradar')
+    filename = erase(filename, [sim_dir '/']);
+    save_fname = ['DPSD_' filename(1:end-4)];
+else
+    save_fname = ['DPSD_emulator-K' num2str(K)];
+end
+
+save(['~/Documents/code/DPSD/dpsd_outputs/' iq_src_abbrev '/' signal_type '/' save_fname '.mat'],...
+    'sZDR', 'sPHV', 'sSH', 'sSV', 'sSX', 'iqh', 'iqv', 'vvx', 'd', 'params');
 
