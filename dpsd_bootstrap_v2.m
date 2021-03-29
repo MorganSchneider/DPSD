@@ -1,24 +1,31 @@
 % I fucking BROKE it AND THIS IS WHY WE DO VERSION CONTROL
-clear;
+%clear;
 close all
 clear iqh1 iqh2 iqv1 iqv2 iqh iqv
 
 plot_save_flag = 0; % set plot_save_flag = 1 to save plots from this script
 K = 20; % number of bootstrapped pseudorealizations
 
-[iq_source, signal_type] = choose_source();
+%[iq_source, signal_type] = choose_source();
+iq_source = 'simradar';
+signal_type = 'rain';
+if strcmp(signal_type, 'rain') || strcmp(signal_type, 'multi')
+    cx = 'DCU';
+else
+    cx = 'TCU';
+end
+el = {'2.0', '2.5', '3.0', '3.5', '4.0', '4.5', '5.0'};
 
 zmap = feval('boonlib', 'zmap', 21);
 rgmap = feval('boonlib', 'rgmap', 21);
 
 
 %---------If using iq_emulate_yu.m---------%
-if strcmp(iq_source, 'emulator_yu')
-    iq_src_abbrev = 'yu';
+if strcmp(iq_source, 'yu')
     
     % Index 1 is rain setting
     % Index 2 is debris setting
-    S_dB = [30 30];
+    S_dB = [30 60];
     S = 10.^(S_dB/10);
     sw = [10 5];
     vr = [-25 25];
@@ -107,23 +114,33 @@ if strcmp(iq_source, 'emulator_yu')
 
 %---------If using SimRadar I/Q data---------%
 elseif strcmp(iq_source, 'simradar')
-    iq_src_abbrev = 'simradar';
     
-    if strcmp(signal_type, 'rain')
-        sim_dir = '~/Documents/code/DPSD/test_sims/rain';
-        filename = blib('choosefile', sim_dir, '*.mat');
-        load(filename);
-    elseif strcmp(signal_type, 'debris')
-        sim_dir = '~/Documents/code/DPSD/test_sims/debris';
-        filename = blib('choosefile', sim_dir, '*.mat');
-        load(filename);
-    elseif strcmp(signal_type, 'multi')
-        sim_dir = '~/Documents/code/DPSD/test_sims/multi';
-        filename = blib('choosefile', sim_dir, '*.mat');
-        load(filename);
+    sim_dir = ['~/Documents/code/DPSD/test_sims/' signal_type];
+    %filename = blib('choosefile', sim_dir, '*.mat');
+    filename = ['sim-PPI' el{elx} '-' cx '-nodebris.mat'];
+    load([sim_dir '/' filename]);
+    
+%     if strcmp(signal_type, 'rain')
+%         sim_dir = '~/Documents/code/DPSD/test_sims/rain';
+%         filename = blib('choosefile', sim_dir, '*.mat');
+%         load(filename);
+%     elseif strcmp(signal_type, 'debris')
+%         sim_dir = '~/Documents/code/DPSD/test_sims/debris';
+%         filename = blib('choosefile', sim_dir, '*.mat');
+%         load(filename);
+%     elseif strcmp(signal_type, 'multi')
+%         sim_dir = '~/Documents/code/DPSD/test_sims/multi';
+%         filename = blib('choosefile', sim_dir, '*.mat');
+%         load(filename);
+%     end
+    
+    params = struct('signal_type', signal_type, 'zdr', zdr, 'phv', rhohv, 'K', K,...
+        'xx', xx, 'yy', yy, 'zz', zz);
+    
+    if size(iqh,4) > 1
+        iqh = iqh(:,:,:,1);
+        iqv = iqv(:,:,:,1);
     end
-    
-    params = struct('signal_type', signal_type, 'zdr', zdr, 'phv', rhohv, 'K', K);
     
     iqh = permute(iqh, [3 1 2]);
     iqv = permute(iqv, [3 1 2]);
@@ -187,7 +204,7 @@ plot(vvx, abs(SXF(:,ind2)) ./ sqrt(SHF(:,ind2) .* SVF(:,ind2)), '--k')
 ylabel('S(\rho_{HV})', 'FontSize', 14)
 
 if plot_save_flag
-    print(['~/Documents/imgs/DPSD/' iq_src_abbrev '_' signal_type '_oldDPSD'], '-dpng')
+    print(['~/Documents/imgs/DPSD/' iq_source '_' signal_type '_oldDPSD'], '-dpng')
 end
 
 Rxx_mat = zeros(2*M-1, dm2, dm3);
@@ -245,7 +262,7 @@ legend('H', 'V', 'Location', 'northeast')
 subplot(2,2,3)
 semilogy(lags, abs(Rxx(:,ind1,ind2)))
 axis square
-if strcmp(iq_source, 'emulator_yu')
+if strcmp(iq_source, 'yu')
     title(['Mean ACF (' num2str(rlzs) ' rlzs)'])
 elseif strcmp(iq_source, 'simradar')
     title('Sample ACF')
@@ -256,14 +273,14 @@ subplot(2,2,4)
 semilogy(vv1, abs(Sxx(:,ind1,ind2)))
 axis square
 xlim([-va va])
-if strcmp(iq_source, 'emulator_yu')
+if strcmp(iq_source, 'yu')
     title(['Mean PSD (' num2str(rlzs) ' rlzs)'])
 elseif strcmp(iq_source, 'simradar')
     title('Sample PSD')
 end
 xlabel('Doppler velocity {\it v_r}')
 if plot_save_flag
-    print(['~/Documents/imgs/DPSD/' iq_src_abbrev '_' signal_type '_TS-ACF-PSD'], '-dpng')
+    print(['~/Documents/imgs/DPSD/' iq_source '_' signal_type '_TS-ACF-PSD'], '-dpng')
 end
 
 % Maximum ratio of corrected samples
@@ -299,7 +316,7 @@ xlabel('Original time series', 'Color', [0.25 0.50 0.25])
 legend('H', 'V', 'Location', 'northeast')
 
 if plot_save_flag
-    print(['~/Documents/imgs/DPSD/' iq_src_abbrev '_' signal_type '_bootstrapdomain'], '-dpng')
+    print(['~/Documents/imgs/DPSD/' iq_source '_' signal_type '_bootstrapdomain'], '-dpng')
 end
 
 % Bootstrap
@@ -346,7 +363,7 @@ end
 sZDR.c = sZDR.ms .* (1 - ((1/b/rlzs) * (1 - (sPHV.ms).^2)));
 sPHV.c = sPHV.ms .* (1 - ((1/b/rlzs) * (1 - (sPHV.ms).^2).^2 ./ (4*(sPHV.ms).^2)));
 sPHV.c(sPHV.c < 0) = 0;
-sZDR.c(sZDR.c < 0) = nan;
+%sZDR.c(sZDR.c < 0) = nan;
 
 % Average over independent rlzs
 if dm3 == 1
@@ -466,7 +483,7 @@ xlabel('Doppler velocity {\it v_r}')
 
 set(gcf, 'Units', 'Inches', 'Position', [2 2 12 10])
 if plot_save_flag
-    print(['~/Documents/imgs/DPSD/' iq_src_abbrev '_' signal_type '_sZDR'], '-dpng')
+    print(['~/Documents/imgs/DPSD/' iq_source '_' signal_type '_sZDR'], '-dpng')
 end
 
 % plot rhoHV spectrum
@@ -532,7 +549,7 @@ xlabel('Doppler velocity {\it v_r}')
 set(gcf, 'Units', 'Inches', 'Position', [2 2 12 10])
 
 if plot_save_flag
-    print(['~/Documents/imgs/DPSD/' iq_src_abbrev '_' signal_type '_sPHV'], '-dpng')
+    print(['~/Documents/imgs/DPSD/' iq_source '_' signal_type '_sPHV'], '-dpng')
 end
 
 % figure(5)
@@ -575,6 +592,6 @@ else
     save_fname = ['DPSD_emulator-K' num2str(K)];
 end
 
-save(['~/Documents/code/DPSD/dpsd_outputs/' iq_src_abbrev '/' signal_type '/' save_fname '.mat'],...
+save(['~/Documents/code/DPSD/dpsd_outputs/' iq_source '/' signal_type '/' save_fname '.mat'],...
     'sZDR', 'sPHV', 'sSH', 'sSV', 'sSX', 'iqh', 'iqv', 'vvx', 'd', 'params');
 

@@ -1,4 +1,4 @@
-function [sZDR, sPHV] = dpsd(VH, VV, d, M, K)
+function [sZDR, sPHV] = dpsd_calc(VH, VV, d, M, K)
 
 % Coherency correction factor
 CX_L = 0.5 * (VH(1)./VH(M) + VV(1)./VV(M)) * ones(M-1,1);
