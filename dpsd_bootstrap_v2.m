@@ -1,20 +1,20 @@
 % I fucking BROKE it AND THIS IS WHY WE DO VERSION CONTROL
-%clear;
-close all
+clear;
+%close all
 clear iqh1 iqh2 iqv1 iqv2 iqh iqv
 
 plot_save_flag = 0; % set plot_save_flag = 1 to save plots from this script
 K = 20; % number of bootstrapped pseudorealizations
 
-%[iq_source, signal_type] = choose_source();
-iq_source = 'simradar';
-signal_type = 'rain';
-if strcmp(signal_type, 'rain') || strcmp(signal_type, 'multi')
-    cx = 'DCU';
-else
-    cx = 'TCU';
-end
-el = {'2.0', '2.5', '3.0', '3.5', '4.0', '4.5', '5.0'};
+[iq_source, signal_type] = choose_source();
+% iq_source = 'simradar';
+% signal_type = 'multi';
+% if strcmp(signal_type, 'rain') || strcmp(signal_type, 'multi')
+%     cx = 'DCU';
+% else
+%     cx = 'TCU';
+% end
+% el = {'2.0', '2.5', '3.0', '3.5', '4.0', '4.5', '5.0'};
 
 zmap = feval('boonlib', 'zmap', 21);
 rgmap = feval('boonlib', 'rgmap', 21);
@@ -116,9 +116,11 @@ if strcmp(iq_source, 'yu')
 elseif strcmp(iq_source, 'simradar')
     
     sim_dir = ['~/Documents/code/DPSD/test_sims/' signal_type];
-    %filename = blib('choosefile', sim_dir, '*.mat');
-    filename = ['sim-PPI' el{elx} '-' cx '-nodebris.mat'];
-    load([sim_dir '/' filename]);
+    filename = blib('choosefile', sim_dir, '*.mat');
+    load(filename);
+%     filename = ['sim-PPI' el{elx} '-' cx '-d' num2str(dt) 'n' num2str(dn) '.mat'];
+%     %filename = ['sim-PPI' el{elx} '-' cx '-nodebris.mat'];
+%     load([sim_dir '/' filename]);
     
 %     if strcmp(signal_type, 'rain')
 %         sim_dir = '~/Documents/code/DPSD/test_sims/rain';
@@ -135,7 +137,7 @@ elseif strcmp(iq_source, 'simradar')
 %     end
     
     params = struct('signal_type', signal_type, 'zdr', zdr, 'phv', rhohv, 'K', K,...
-        'xx', xx, 'yy', yy, 'zz', zz);
+        'xx', xx, 'yy', yy, 'zz', zz, 'va', dat.params.va, 'vr', vr);
     
     if size(iqh,4) > 1
         iqh = iqh(:,:,:,1);
@@ -167,8 +169,10 @@ R0_d = mean(abs(d).^2); % window power
 dm2 = size(iqh,2);
 dm3 = size(iqh,3);
 % Random indices for plotting
-ind1 = randsample(dm2,1);
-ind2 = randsample(dm3,1);
+%ind1 = randsample(dm2,1);
+%ind2 = randsample(dm3,1);
+ind1 = 15;
+ind2 = 20;
 
 % Data window
 d_rep = repmat(d, [1 dm2 dm3]);
@@ -363,7 +367,7 @@ end
 sZDR.c = sZDR.ms .* (1 - ((1/b/rlzs) * (1 - (sPHV.ms).^2)));
 sPHV.c = sPHV.ms .* (1 - ((1/b/rlzs) * (1 - (sPHV.ms).^2).^2 ./ (4*(sPHV.ms).^2)));
 sPHV.c(sPHV.c < 0) = 0;
-%sZDR.c(sZDR.c < 0) = nan;
+sZDR.c(sZDR.c < 0) = real(sZDR.c(sZDR.c < 0));
 
 % Average over independent rlzs
 if dm3 == 1
@@ -418,44 +422,44 @@ end
 %
 
 % plot ZDR spectrum
-figure(3)
+figure(7)
 subplot(2,2,1)
 yyaxis left
-semilogy(vvx, abs(sSH.f(:,ind1,ind2)), 'k', 'LineWidth', 1)
-xlabel('Doppler velocity {\it v_r}')
-ylabel('PSD')
+semilogy(vvx, abs(sSH.f(:,ind1,ind2)), '-.k', 'LineWidth', 1.5)
+xlabel('Doppler velocity {\it v_r}', 'FontSize', 20)
+ylabel('PSD', 'FontSize', 20)
 yyaxis right
-plot(vvx, 10*log10(sZDR.f(:,ind1,ind2)), '-b')
+plot(vvx, 10*log10(sZDR.f(:,ind1,ind2)), '-r', 'LineWidth', 1.2)
 % hold on
 % plot(vvx, 10*log10(sZDR.auf(:,ind1,ind2)), '-r')
 % hold off
 % legend('PSD', 'morgan DPSD', 'arturo DPSD', 'Location', 'southwest')
 ylim([-10 10])
-ylabel('sZ_{DR}')
+ylabel('sZ_{DR}', 'FontSize', 20)
 xlim([-va va])
-axis square
+%axis square
 grid on
-title(['Mean H-channel PSD, sZ_{DR} ({\it K}=', num2str(K), ')'])
-xlabel('Doppler velocity {\it v_r}')
+title(['Mean H-channel PSD, sZ_{DR} ({\it K}=', num2str(K), ')'], 'FontSize', 20)
+%xlabel('Doppler velocity {\it v_r}', 'FontSize', 20)
 
 
 subplot(2,2,2)
 yyaxis left
-semilogy(vvx, abs(sSV.f(:,ind1,ind2)), 'k', 'LineWidth', 1)
-xlabel('Doppler velocity {\it v_r}')
-ylabel('PSD')
+semilogy(vvx, abs(sSH.f(:,ind1,ind2)), '-.k', 'LineWidth', 1.5)
+xlabel('Doppler velocity {\it v_r}', 'FontSize', 20)
+ylabel('PSD', 'FontSize', 20)
 yyaxis right
-plot(vvx, 10*log10(sZDR.f(:,ind1,ind2)), '-b')
+plot(vvx, 10*log10(sZDR.cf(:,ind1,ind2)), '-r', 'LineWidth', 1.2)
 % hold on
 % plot(vvx, 10*log10(sZDR.auf(:,ind1,ind2)), '-r')
 % hold off
 ylim([-10 10])
-ylabel('sZ_{DR}')
+ylabel('sZ_{DR}', 'FontSize', 20)
 xlim([-va va])
-axis square
+%axis square
 grid on
-title(['Mean V-channel PSD, sZ_{DR} ({\it K}=', num2str(K), ')'])
-xlabel('Doppler velocity {\it v_r}')
+title(['Mean H-channel PSD, sZ_{DR} ({\it K}=', num2str(K), ')'], 'FontSize', 20)
+xlabel('Doppler velocity {\it v_r}', 'FontSize', 20)
 
 subplot(2,2,3)
 plot(vvx, 10*log10(sZDR.f(:,ind1,ind2)), 'b')
@@ -464,7 +468,7 @@ plot(vvx, 10*log10(sZDR.f(:,ind1,ind2)), 'b')
 % hold off
 xlim([-va, va])
 ylim([-10 10])
-axis square
+%axis square
 grid on
 title('{\it s}Z_{DR}({\it v_r}) in dBZ')
 xlabel('Doppler velocity {\it v_r}')
@@ -476,7 +480,7 @@ plot(vvx, 10*log10(sZDR.cf(:,ind1,ind2)), 'b')
 % hold off
 xlim([-va, va])
 ylim([-10 10])
-axis square
+%axis square
 grid on
 title('Bias-corrected {\it s}Z_{DR}({\it v_r}) in dBZ')
 xlabel('Doppler velocity {\it v_r}')
@@ -487,40 +491,40 @@ if plot_save_flag
 end
 
 % plot rhoHV spectrum
-figure(4)
+figure(8)
 subplot(2,2,1)
 yyaxis left
-semilogy(vvx, abs(sSH.f(:,ind1,ind2)), 'k', 'LineWidth', 1)
-xlabel('Doppler velocity {\it v_r}')
-ylabel('PSD')
+semilogy(vvx, abs(sSH.f(:,ind1,ind2)), '-.k', 'LineWidth', 1.5)
+xlabel('Doppler velocity {\it v_r}', 'FontSize', 20)
+ylabel('PSD', 'FontSize', 20)
 yyaxis right
-plot(vvx, sPHV.f(:,ind1,ind2), '-b')
+plot(vvx, sPHV.f(:,ind1,ind2), '-r', 'LineWidth', 1.2)
 % hold on
 % plot(vvx, sPHV.auf(:,ind1,ind2), '-r')
 % hold off
 % legend('PSD', 'morgan DPSD', 'arturo DPSD', 'Location', 'southwest')
 ylim([0 1])
-ylabel('s\rho_{HV}')
-axis square
+ylabel('s\rho_{HV}', 'FontSize', 20)
+%axis square
 grid on
-title(['Mean H-channel PSD, s\rho_{HV} ({\it K}=', num2str(K), ')'])
+title(['Mean H-channel PSD, s\rho_{HV} ({\it K}=', num2str(K), ')'], 'FontSize', 20)
 
 subplot(2,2,2)
 yyaxis left
-semilogy(vvx, abs(sSV.f(:,ind1,ind2)), 'k', 'LineWidth', 1)
-ylabel('PSD')
+semilogy(vvx, abs(sSH.f(:,ind1,ind2)), '-.k', 'LineWidth', 1.5)
+ylabel('PSD', 'FontSize', 20)
 yyaxis right
-plot(vvx, sPHV.f(:,ind1,ind2), '-b')
+plot(vvx, sPHV.cf(:,ind1,ind2), '-r', 'LineWidth', 1.2)
 % hold on
 % plot(vvx, sPHV.auf(:,ind1,ind2), '-r')
 % hold off
 ylim([0 1])
-ylabel('s\rho_{HV}')
+ylabel('s\rho_{HV}', 'FontSize', 20)
 xlim([-va va])
-axis square
+%axis square
 grid on
-title(['Mean V-channel PSD, s\rho_{HV} ({\it K}=', num2str(K), ')'])
-xlabel('Doppler velocity {\it v_r}')
+title(['Mean H-channel PSD, s\rho_{HV} ({\it K}=', num2str(K), ')'], 'FontSize', 20)
+xlabel('Doppler velocity {\it v_r}', 'FontSize', 20)
 
 subplot(2,2,3)
 plot(vvx, sPHV.f(:,ind1,ind2), 'b')
@@ -529,7 +533,7 @@ plot(vvx, sPHV.f(:,ind1,ind2), 'b')
 % hold off
 xlim([-va, va])
 ylim([0 1])
-axis square
+%axis square
 grid on
 title('{\it s}\rho_{HV}({\it v_r})')
 xlabel('Doppler velocity {\it v_r}')
@@ -541,7 +545,7 @@ plot(vvx, sPHV.cf(:,ind1,ind2), 'b')
 % hold off
 xlim([-va, va])
 ylim([0 1])
-axis square
+%axis square
 grid on
 title('Bias-corrected {\it s}\rho_{HV}({\it v_r})')
 xlabel('Doppler velocity {\it v_r}')
@@ -592,6 +596,6 @@ else
     save_fname = ['DPSD_emulator-K' num2str(K)];
 end
 
-save(['~/Documents/code/DPSD/dpsd_outputs/' iq_source '/' signal_type '/' save_fname '.mat'],...
+save(['~/Documents/code/DPSD/dpsd_outputs/' iq_source '/' signal_type '/x100/' save_fname '.mat'],...
     'sZDR', 'sPHV', 'sSH', 'sSV', 'sSX', 'iqh', 'iqv', 'vvx', 'd', 'params');
 

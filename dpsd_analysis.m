@@ -17,59 +17,52 @@ close all
 win = nuttallwin(100);
 
 % number of debris
-dn = 10000;
-els = {'2.0', '3.0', '4.0', '5.0'};
+dn = 100000;
+els = {'2.0', '2.5', '3.0', '3.5', '4.0', '4.5', '5.0'};
 
 
 %%% Rain %%%
-dpsd_dir = '~/Documents/code/DPSD/dpsd_outputs/simradar/rain/';
-ff = '*.mat';
-files = dir([dpsd_dir ff]);
-
+rain_dir = '~/Documents/code/DPSD/dpsd_outputs/simradar/rain/x100';
 rain = struct('vh', [], 'vv', [], 'szdr', [], 'sphv', [], 'psd', []);
 
-for i = 1:length(files)
-    fname = [files(i).folder '/' files(i).name];
-    load(fname)
+for elx = 1:7
+    ff = ['DPSD_sim-PPI' els{elx} '-DCU-nodebris.mat'];
+    load([rain_dir '/' ff])
     
-    rain.vh(:,:,:,i) = iqh .* win;
-    rain.vv(:,:,:,i) = iqv .* win;
-    rain.szdr(:,:,:,i) = 10*log10(sZDR.cf);
-    rain.sphv(:,:,:,i) = sPHV.cf;
+    rain.vh(:,:,:,elx) = iqh .* win;
+    rain.vv(:,:,:,elx) = iqv .* win;
+    rain.szdr(:,:,:,elx) = real(10*log10(sZDR.cf));
+    rain.sphv(:,:,:,elx) = sPHV.cf;
 end
 
 M = size(iqh,1);
-
-%%% Multi %%%
-
-dpsd_dir = '~/Documents/code/DPSD/dpsd_outputs/simradar/multi/';
-mult = struct('vh', [], 'vv', [], 'szdr', [], 'sphv', [], 'psd', []);
-
-for dt = 1:4 % add windowing function
-    % nuttallwin(N)
-    % zero padding for FFT
-    ff = ['*d' num2str(dt) 'n*.mat'];
-    files = dir([dpsd_dir ff]);
     
-    for i = 1:3%length(files)
-        fname = [files(i).folder '/' files(i).name];
-        load(fname)
+%%% Multi %%%
+    
+mult_dir = '~/Documents/code/DPSD/dpsd_outputs/simradar/multi/x100';
+mult = struct('vh', [], 'vv', [], 'szdr', [], 'sphv', [], 'psd', []);
+    
+for elx = 1:7
+    for dt = [1 3] % add windowing function
+        % nuttallwin(N)
+        % zero padding for FFT
+        ff = ['DPSD_sim-PPI' els{elx} '-DCU-d' num2str(dt) 'n' num2str(dn) '.mat'];
+        load([mult_dir '/' ff])
         
-        mult.vh(:,:,:,i,dt) = iqh .* win;
-        mult.vv(:,:,:,i,dt) = iqv .* win;
-        mult.szdr(:,:,:,i,dt) = 10*log10(sZDR.cf);
-        mult.sphv(:,:,:,i,dt) = sPHV.cf;
+        mult.vh(:,:,:,elx,(dt+1)/2) = iqh .* win;
+        mult.vv(:,:,:,elx,(dt+1)/2) = iqv .* win;
+        mult.szdr(:,:,:,elx,(dt+1)/2) = real(10*log10(sZDR.cf));
+        mult.sphv(:,:,:,elx,(dt+1)/2) = sPHV.cf;
     end
+    
 end
-
-
 
 %% Find debris velocities
 
 deb = struct('vh', [], 'psd', []);
 
 
-deb.vh = mult.vh - repmat(rain.vh, [1 1 1 1 4]);
+deb.vh = mult.vh - repmat(rain.vh, [1 1 1 1 2]);
 zh = fftshift(fft(deb.vh, M, 1));
 deb.psd = flip(abs(zh).^2 / M);
 
@@ -81,37 +74,44 @@ rain.psd = flip(abs(zhr).^2 / M);
 
 
 % CHECK PARAMS for 14,20 in d3 0.5deg
+rdx = 14; % rad index
+azdx = 20; % az index
+eldx = 7; % elev index
+ddx = 2; % dtype
 
 figure(1)
 subplot(1,2,1)
-% 14,20,1,3
+% rdx=14,azdx=20,eldx=1,ddx=3
 yyaxis left
-semilogy(vvx, abs(mult.psd(:,14,20,1,3)), '-k', 'LineWidth', 0.8)
+semilogy(vvx, abs(mult.psd(:,rdx,azdx,eldx,ddx)), '-k', 'LineWidth', 0.8)
 hold on
-semilogy(vvx, abs(deb.psd(:,14,20,1,3)), '-r', 'LineWidth', 0.8)
-semilogy(vvx, abs(rain.psd(:,14,20,1)), '--b', 'LineWidth', 0.8)
+semilogy(vvx, abs(deb.psd(:,rdx,azdx,eldx,ddx)), '-r', 'LineWidth', 0.8)
+semilogy(vvx, abs(rain.psd(:,rdx,azdx,eldx)), '--b', 'LineWidth', 0.8)
 hold off
-% yyaxis right
-% plot(vvx, mult.sphv(:,14,20,1,3), '-k')
+yyaxis right
+plot(vvx, mult.sphv(:,rdx,azdx,eldx,ddx), '-k')
 legend('multi', 'debris', 'rain', 'Location', 'northwest')
 
 % do this in dB instead of linear
 subplot(1,2,2)
 yyaxis left
-plot(vvx, 10*log10(mult.psd(:,14,20,1,3)) - 10*log10(rain.psd(:,14,20,1)), '-r', 'LineWidth', 0.8)
+plot(vvx, 10*log10(mult.psd(:,rdx,azdx,eldx,ddx)) - 10*log10(rain.psd(:,rdx,azdx,eldx)), '-r', 'LineWidth', 0.8)
 hold on
 plot(vvx, 2*ones(1,length(vvx)), '-k', 'LineWidth', 0.8)
 plot(vvx, 5*ones(1,length(vvx)), '-k', 'LineWidth', 0.8)
 hold off
-% yyaxis right
-% plot(vvx, mult.sphv(:,14,20,1,3), '-k');
+yyaxis right
+plot(vvx, mult.sphv(:,rdx,azdx,eldx,ddx), '-k');
 
 
 
-psd_diff = 10*log10(mult.psd) - repmat(10*log10(rain.psd), [1 1 1 1 4]);
+psd_diff = 10*log10(mult.psd) - repmat(10*log10(rain.psd), [1 1 1 1 size(mult.vh,5)]);
 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% debris ID
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-thres = 2;
+thres = 5;
 pthres = 1e4;
 
 
@@ -122,10 +122,10 @@ r.el = struct('szdr', [], 'sphv', []);
 
 d_szdr = []; d_sphv = []; r_szdr = []; r_sphv = [];
 
-for dd = 1:4
+for dd = 1:2
     
     dszdr_tot = []; dsphv_tot = []; rszdr_tot = []; rsphv_tot = [];
-    for ee = 1:3
+    for ee = 1:7
         
         dszdr = []; dsphv = []; rszdr = []; rsphv = [];
         for rr = 1:21
@@ -174,66 +174,67 @@ end
 
 
 sphv_bins = 0.025:0.025:1;
-szdr_bins = -20:0.5:20;
+szdr_bins = -20:1:20;
 
 
+%% PLOTS
 
 
 % Plot SPHV grouped by debris type
 
-for dd = 1:4
-    figure()
-    for ee = 1:3
-        subplot(2,3,ee)
-        histogram(d(dd).el(ee).sphv, sphv_bins)
-        title(['d' num2str(dd) ' el=' els{ee} '.0 (thres=' num2str(thres) 'dB)'])
-        xlabel('sphv')
-        
-        subplot(2,3,ee+3)
-        histogram(r(dd).el(ee).sphv, sphv_bins)
-        title(['rain el=' els{ee} '.0 (thres=' num2str(thres) 'dB)'])
-        xlabel('sphv')
-    end
-    
-    figure()
-    for ee = 1:3
-        subplot(2,3,ee)
-        histogram(d(dd).el(ee).szdr, szdr_bins)
-        title(['d' num2str(dd) ' el=' els{ee} '.0 (thres=' num2str(thres) 'dB)'])
-        xlabel('szdr')
-        
-        subplot(2,3,ee+3)
-        histogram(r(dd).el(ee).szdr, szdr_bins)
-        title(['rain el=' els{ee} '.0 (thres=' num2str(thres) 'dB)'])
-        xlabel('szdr')
-    end
-end
-
-figure()
-for dd = 1:4
-    subplot(2,4,dd)
-    histogram(d(dd).sphv, sphv_bins)
-    title(['d' num2str(dd) ' (thres=' num2str(thres) 'dB)'])
-    xlabel('sphv')
-    
-    subplot(2,4,dd+4)
-    histogram(r(dd).sphv, sphv_bins)
-    title(['rain (thres=' num2str(thres) 'dB)'])
-    xlabel('sphv')
-end
-
-figure()
-for dd = 1:4
-    subplot(2,4,dd)
-    histogram(d(dd).szdr, szdr_bins)
-    title(['d' num2str(dd) ' (thres=' num2str(thres) 'dB)'])
-    xlabel('szdr')
-    
-    subplot(2,4,dd+4)
-    histogram(r(dd).szdr, szdr_bins)
-    title(['rain (thres=' num2str(thres) 'dB)'])
-    xlabel('szdr')
-end
+% for dd = 1:4
+%     figure()
+%     for ee = 1:3
+%         subplot(2,3,ee)
+%         histogram(d(dd).el(ee).sphv, sphv_bins)
+%         title(['d' num2str(dd) ' el=' els{ee} '.0 (thres=' num2str(thres) 'dB)'])
+%         xlabel('sphv')
+%         
+%         subplot(2,3,ee+3)
+%         histogram(r(dd).el(ee).sphv, sphv_bins)
+%         title(['rain el=' els{ee} '.0 (thres=' num2str(thres) 'dB)'])
+%         xlabel('sphv')
+%     end
+%     
+%     figure()
+%     for ee = 1:3
+%         subplot(2,3,ee)
+%         histogram(d(dd).el(ee).szdr, szdr_bins)
+%         title(['d' num2str(dd) ' el=' els{ee} '.0 (thres=' num2str(thres) 'dB)'])
+%         xlabel('szdr')
+%         
+%         subplot(2,3,ee+3)
+%         histogram(r(dd).el(ee).szdr, szdr_bins)
+%         title(['rain el=' els{ee} '.0 (thres=' num2str(thres) 'dB)'])
+%         xlabel('szdr')
+%     end
+% end
+% 
+% figure()
+% for dd = 1:4
+%     subplot(2,4,dd)
+%     histogram(d(dd).sphv, sphv_bins)
+%     title(['d' num2str(dd) ' (thres=' num2str(thres) 'dB)'])
+%     xlabel('sphv')
+%     
+%     subplot(2,4,dd+4)
+%     histogram(r(dd).sphv, sphv_bins)
+%     title(['rain (thres=' num2str(thres) 'dB)'])
+%     xlabel('sphv')
+% end
+% 
+% figure()
+% for dd = 1:4
+%     subplot(2,4,dd)
+%     histogram(d(dd).szdr, szdr_bins)
+%     title(['d' num2str(dd) ' (thres=' num2str(thres) 'dB)'])
+%     xlabel('szdr')
+%     
+%     subplot(2,4,dd+4)
+%     histogram(r(dd).szdr, szdr_bins)
+%     title(['rain (thres=' num2str(thres) 'dB)'])
+%     xlabel('szdr')
+% end
 
 
 % Plot everything together
@@ -265,21 +266,18 @@ xlabel('sphv')
 
 %%% Debris %%%
 
-dpsd_dir = '~/Documents/code/DPSD/dpsd_outputs/simradar/debris/';
+debr_dir = '~/Documents/code/DPSD/dpsd_outputs/simradar/debris/x100';
 debris = struct('vh', [], 'vv', [], 'szdr', [], 'sphv', [], 'psd', []);
 
-for dt = 3:4
-    ff = ['*d' num2str(dt) 'n*.mat'];
-    files = dir([dpsd_dir ff]);
-    
-    for i = 1:length(files)
-        fname = [files(i).folder '/' files(i).name];
-        load(fname)
+for elx = 1:7
+    for dt = [1 3]
+        ff = ['DPSD_sim-PPI' els{elx} '-TCU-d' num2str(dt) 'n' num2str(dn) '.mat'];
+        load([debr_dir '/' ff])
         
-        debris.vh(:,:,:,i,dt) = iqh .* win;
-        debris.vv(:,:,:,i,dt) = iqv .* win;
-        debris.szdr(:,:,:,i,dt) = 10*log10(sZDR.cf);
-        debris.sphv(:,:,:,i,dt) = sPHV.cf;
+        debris.vh(:,:,:,elx,(dt+1)/2) = iqh .* win;
+        debris.vv(:,:,:,elx,(dt+1)/2) = iqv .* win;
+        debris.szdr(:,:,:,elx,(dt+1)/2) = real(10*log10(sZDR.cf));
+        debris.sphv(:,:,:,elx,(dt+1)/2) = sPHV.cf;
     end
 end
 
@@ -325,35 +323,62 @@ title(['Multi ' num2str(n) 'pt running variance'])
 
 figure(15)
 
-subplot(3,2,1)
+subplot(2,3,1)
 %histogram(debris.szdr(abs(mult.psd) > pthres), szdr_bins)
+yyaxis left
 histogram(debris.szdr, szdr_bins)
+ylim([0 2e5])
+yyaxis right
+plot(szdr, mem_zdr_debr, '-k', 'LineWidth', 2)
+ylim([0 2])
 %histfit(reshape(debris.szdr, [1612800 1]), 61)
-title('Debris sZDR')
-ylim([0 3e4])
+title('Debris sZDR', 'FontSize', 20)
 
-subplot(3,2,2)
+subplot(2,3,4)
+yyaxis left
 histogram(rain.szdr, szdr_bins)
+ylim([0 2e5])
+yyaxis right
+plot(szdr, mem_zdr_rain, '-k', 'LineWidth', 2)
+ylim([0 2])
 %histfit(reshape(rain.szdr, [403200 1]), 61)
-title('Rain sZDR')
+title('Rain sZDR', 'FontSize', 20)
 
-subplot(3,2,3)
+subplot(2,3,2)
 %histogram(debris.sphv(abs(mult.psd) > pthres), sphv_bins)
+yyaxis left
 histogram(debris.sphv, sphv_bins)
+ylim([0 6e5])
+yyaxis right
+plot(sphv, mem_phv_debr, '-k', 'LineWidth', 2)
+ylim([0 2])
 %histfit(reshape(debris.sphv(debris.sphv>0), [1612800 1]), 21, 'gamma')
-title('Debris sPHV')
-ylim([0 1e5])
+title('Debris sPHV', 'FontSize', 20)
 
-subplot(3,2,4)
+subplot(2,3,5)
+yyaxis left
 histogram(rain.sphv, sphv_bins)
+yyaxis right
+plot(sphv, mem_phv_rain, '-k', 'LineWidth', 2)
+ylim([0 2])
 %histfit(reshape(rain.sphv, [403200 1]), 21, 'gamma')
-title('Rain sPHV')
+title('Rain sPHV', 'FontSize', 20)
 
-subplot(3,2,5)
+subplot(2,3,3)
+yyaxis left
 histogram(sphv_var_debr, var_bins)
-title(['Debris ' num2str(n) 'pt running variance'])
+yyaxis right
+plot(svar, mem_var_debr, '-k', 'LineWidth', 2)
+ylim([0 2])
+ylabel('Membership Function', 'FontSize', 20)
+title(['Debris ' num2str(n) 'pt moving var'], 'FontSize', 20)
 
-subplot(3,2,6)
+subplot(2,3,6)
+yyaxis left
 histogram(sphv_var_rain, var_bins)
-title(['Rain ' num2str(n) 'pt running variance'])
+yyaxis right
+plot(svar, mem_var_rain, '-k', 'LineWidth', 2)
+ylim([0 2])
+ylabel('Membership Function', 'FontSize', 20)
+title(['Rain ' num2str(n) 'pt moving var'], 'FontSize', 20)
 
