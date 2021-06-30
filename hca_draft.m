@@ -30,12 +30,12 @@ ddx = 2; % no change: 15 20 1 2; 15 20 7 2
 psd = mult.psd(:,rdx,adx,edx,ddx);
 psd_rain = rain.psd(:,rdx,adx,edx);
 
-szdr = mult.szdr(:,rdx,adx,edx,ddx);
-sphv = mult.sphv(:,rdx,adx,edx,ddx);
-svar = sphv_var_mult(:,rdx,adx,edx,ddx);
-% szdr = linspace(-25,25,100);
-% sphv = linspace(0,1,100);
-% svar = linspace(0,0.3,100);
+% szdr = mult.szdr(:,rdx,adx,edx,ddx);
+% sphv = mult.sphv(:,rdx,adx,edx,ddx);
+% svar = sphv_var_mult(:,rdx,adx,edx,ddx);
+szdr = linspace(-25,25,100);
+sphv = linspace(0,1,100);
+svar = linspace(0,0.3,100);
 vel = vvx;
 
 M = length(vel);
@@ -44,11 +44,11 @@ obj_class = zeros(M,1);
 
 %% Membership functions (turn this into a separate matlab function)
 
-tpr = [0.9, 0.95]; % threshold phv rain
+tpr = [0.85, 0.9]; % threshold phv rain
 tpd = tpr(1); % threshold phv debris
 tzr = [-2, 0, 3, 5]; % threshold zdr rain
-tzd = [-20, -10, 5, 15]; % threshold zdr debris
-tvr = [0.02, 0.05]; % threshold var rain
+tzd = [-20, -6, 5, 15]; % threshold zdr debris
+tvr = [0.03, 0.07]; % threshold var rain
 tvd = [0, 0.05, 0.15, 0.25]; % threshold var debris
 
  

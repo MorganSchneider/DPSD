@@ -44,8 +44,8 @@ PHV = params.phv;
 
 %% 
 
-r_ind = 14;
-az_ind = 20;
+r_ind = [7,7];
+az_ind = [20,28];
 
 
 %for r_ind = 1:size(iqh,2)
@@ -73,7 +73,7 @@ az_ind = 20;
         plot(xx(r_ind, az_ind), yy(r_ind, az_ind), 'sk', 'MarkerSize', 11, 'MarkerFaceColor', 'w', 'LineWidth', 2);
         hold off
         set(gca, 'DataAspect', [1 1 1])
-        caxis([-1 1] * round(max(max(abs(vr(:,:,1)))), -1))
+        caxis([-1 1] * round(max(abs(vr(:,:,1)),[],'all')), -1)
         colormap(ha(2), blib('rgmap2'))
         colorbar
         shading flat
@@ -90,7 +90,7 @@ az_ind = 20;
         ylabel('sZ_{DR}')
         title('Spectral Z_{DR}')
         %xlim([-va va])
-        ylim([-10 10])
+        ylim([-15 15])
         %axis square
         grid on
         

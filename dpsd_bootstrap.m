@@ -30,7 +30,7 @@ if strcmp(iq_source, 'emulator')
     vr = [25, -25]; % mean Doppler velocity in m/s
     sw = [5, 10]; % Doppler spectrum width in m/s
     SNR = 30; % SNR in dB
-    zdr = [0, 4]; % Bulk ZDR in dBZ
+    zdr = [3, -2]; % Bulk ZDR in dBZ
     phv = [0.98, 0.5]; % Bulk rhoHV
     
     va = 50; % Nyquist velocity
@@ -50,7 +50,7 @@ if strcmp(iq_source, 'emulator')
     end
     
 %---------If using iq_emulate_yu.m---------%
-elseif strcmp(iq_source, 'emulator_yu')
+elseif strcmp(iq_source, 'yu')
     iq_src_abbrev = 'yu';
     
     M = 100;
@@ -85,7 +85,7 @@ elseif strcmp(iq_source, 'emulator_yu')
         szdr = zdr(1) * ones(size(Sv));
     elseif strcmp(signal_type, 'debris')
         rhv = [0.5 0.5];
-        zdr = [0 0];
+        zdr = [-1 -1];
         Sv = S2 / sqrt(2*pi*sw2^2) .* exp(-(vv - vr2).^2 / (2*sw2^2));
         sphv = rhv(2) * ones(size(Sv));
         szdr = zdr(2) * ones(size(Sv));
@@ -212,8 +212,8 @@ elseif strcmp(iq_source, 'simradar')
             rhohv_test = rhohv(r_ind, az_ind);
         end
     else
-        r_ind = randsample(size(iqh,1), 1); % randomly pull from SimRadar output
-        az_ind = randsample(size(iqh,2), 1);
+        r_ind = 15; % randomly pull from SimRadar output
+        az_ind = 20;
     end
     iqh = double(squeeze(iqh(r_ind, az_ind, :)));
     iqv = double(squeeze(iqv(r_ind, az_ind, :)));
@@ -307,7 +307,7 @@ f0 = fs / M;
 f = f0 * inds_2s;
 vv = -f * lambda / 2;
 
-if strcmp(iq_source, 'emulator') || strcmp(iq_source, 'emulator_yu')
+if strcmp(iq_source, 'emulator') || strcmp(iq_source, 'yu')
     Rxx = mean(Rxx_mat, 2);
     Sxx = mean(Sxx_mat, 2);
     R0h = mean(iqh.*conj(iqh), 1); % Horiz. lag 0 ACF
@@ -368,7 +368,7 @@ legend('H', 'V', 'Location', 'northeast')
 subplot(2,2,3)
 semilogy(lags, abs(Rxx))
 axis square
-if strcmp(iq_source, 'emulator_yu')
+if strcmp(iq_source, 'yu')
     title(['Mean ACF (' num2str(rlzs) ' rlzs)'])
 elseif strcmp(iq_source, 'simradar')
     title('ACF')
@@ -379,7 +379,7 @@ subplot(2,2,4)
 semilogy(vv, abs(Sxx))
 axis square
 xlim([-va va])
-if strcmp(iq_source, 'emulator_yu')
+if strcmp(iq_source, 'yu')
     title(['Mean PSD (' num2str(rlzs) ' rlzs)'])
 elseif strcmp(iq_source, 'simradar')
     title('PSD')
@@ -635,25 +635,104 @@ xlabel('Doppler velocity {\it v_r}')
 
 print(['~/Documents/imgs/DPSD/' iq_src_abbrev '_' signal_type '_sPHV'], '-dpng')
 
+%%
 
-% figure(5)
-% 
-% subplot(1,2,1)
-% plot(vv, 10*log10(sZDR_corr_f) - 10*log10(flip(E.sD(:))))
-% title(['\DeltasZ_{DR} (K=' num2str(K) ')'])
-% xlim([-va va])
-% ylim([-20 20])
-% axis square
-% grid on
-% 
-% subplot(1,2,2)
-% plot(vv, sPHV_corr_f - flip(E.sR(:)))
-% title(['\Deltas\rho_{HV} (K=' num2str(K) ')'])
-% xlim([-va va])
-% ylim([-1 1])
-% axis square
-% grid on
+figure(5)
 
+ax1 = subplot(2,2,1);
+% DPSD
+yyaxis left
+plot(vv, tmp_szdr, 'k', 'LineWidth', 1.1)
+ylabel('sZ_{DR} (dB)', 'FontSize', 14)
+xlim([-va, va])
+ylim([-5, 5])
+text(-30, 0.5, 'Debris', 'FontSize', 20)
+text(22, 0.5, 'Rain', 'FontSize', 20)
+text(-48, -2.5, 'sZ_{DR}', 'FontSize', 14)
+text(-48, 2, 'sS_V', 'FontSize', 14, 'Color', [0.6 0.6 0.6])
+% PSD
+yyaxis right
+hs1 = semilogy(vv, Sv, 'LineWidth', 1);
+hs1.Color = [0.6 0.6 0.6];
+hs1.LineStyle = '-.';
+ylabel('sS_V', 'FontSize', 14)
+ax1.YAxis(1).Color = 'k';
+ax1.YAxis(2).Color = [0.6 0.6 0.6];
+grid on
+title('(a) Input sZ_{DR}, sS_V', 'FontSize', 14)
+xlabel('{\it v} (m s^{-1})', 'FontSize', 14)
+%legend('sZ_{DR}', 'sS_V', 'Location', 'northwest')
+
+
+ax2 = subplot(2,2,2);
+% DPSD
+yyaxis left
+plot(vv, tmp_sphv, 'k', 'LineWidth', 1.1)
+ylabel('s\rho_{HV}', 'FontSize', 14)
+xlim([-va, va])
+ylim([0, 1])
+text(-30, 0.55, 'Debris', 'FontSize', 20)
+text(22, 0.55, 'Rain', 'FontSize', 20)
+text(-48, 0.15, 's\rho_{HV}', 'FontSize', 14)
+text(-48, 0.7, 'sS_V', 'FontSize', 14, 'Color', [0.6 0.6 0.6])
+% PSD
+yyaxis right
+hs2 = semilogy(vv, Sv, 'LineWidth', 1);
+hs2.Color = [0.6 0.6 0.6];
+hs2.LineStyle = '-.';
+ylabel('sS_V', 'FontSize', 14)
+ax2.YAxis(1).Color = 'k';
+ax2.YAxis(2).Color = [0.6 0.6 0.6];
+grid on
+title('(b) Input s\rho_{HV}, sS_V', 'FontSize', 14)
+xlabel('{\it v} (m s^{-1})', 'FontSize', 14)
+%legend('s\rho_{HV}', 'sS_V', 'Location', 'northwest')
+
+
+ax3 = subplot(2,2,3);
+% DPSD
+yyaxis left
+plot(vv, 10*log10(sZDR_corr_f), 'k', 'LineWidth', 1.1)
+ylabel('sZ_{DR} (dB)', 'FontSize', 14)
+xlim([-va, va])
+ylim([-5, 5])
+text(-49, 3.8, 'sZ_{DR}', 'FontSize', 14)
+text(-48, -0.9, 'sS_H', 'FontSize', 14, 'Color', [0.6 0.6 0.6])
+% PSD
+yyaxis right
+hs3 = semilogy(vv, mean(abs(sSH_f), 2), 'LineWidth', 1);
+hs3.Color = [0.6 0.6 0.6];
+hs3.LineStyle = '-.';
+ylabel('sS_H', 'FontSize', 14)
+ax3.YAxis(1).Color = 'k';
+ax3.YAxis(2).Color = [0.6 0.6 0.6];
+grid on
+title('(c) Output sZ_{DR}, sS_H', 'FontSize', 14)
+xlabel('{\it v} (m s^{-1})', 'FontSize', 14)
+%legend('sZ_{DR}', 'sS_H', 'Location', 'northwest')
+
+
+ax4 = subplot(2,2,4);
+% DPSD
+yyaxis left
+plot(vv, sPHV_corr_f, 'k', 'LineWidth', 1.1)
+ylabel('s\rho_{HV}', 'FontSize', 14)
+xlim([-va, va])
+ylim([0, 1])
+text(-49, 0.85, 's\rho_{HV}', 'FontSize', 14)
+text(-48, 0.41, 'sS_H', 'FontSize', 14, 'Color', [0.6 0.6 0.6])
+% PSD
+yyaxis right
+hs4 = semilogy(vv, mean(abs(sSH_f), 2), 'LineWidth', 1);
+hs4.Color = [0.6 0.6 0.6];
+hs4.LineStyle = '-.';
+ylabel('sS_H', 'FontSize', 14)
+ax4.YAxis(1).Color = 'k';
+ax4.YAxis(2).Color = [0.6 0.6 0.6];
+grid on
+title('(d) Output s\rho_{HV}, sS_H', 'FontSize', 14)
+xlabel('{\it v} (m s^{-1})', 'FontSize', 14)
+%legend('s\rho_{HV}', 'sS_H', 'Location', 'northwest')
 
 
 % save variables into .mat file

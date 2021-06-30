@@ -25,11 +25,11 @@ if strcmp(iq_source, 'yu')
     
     % Index 1 is rain setting
     % Index 2 is debris setting
-    S_dB = [30 60];
+    S_dB = [30 30];
     S = 10.^(S_dB/10);
-    sw = [10 5];
+    sw = [5 10];
     vr = [-25 25];
-    zdr = [1 5];
+    zdr = [3 -2];
     phv = [0.98 0.5];
     rlzs = 1; % Number of spectra to generate
     M = 100;
@@ -171,8 +171,14 @@ dm3 = size(iqh,3);
 % Random indices for plotting
 %ind1 = randsample(dm2,1);
 %ind2 = randsample(dm3,1);
-ind1 = 15;
-ind2 = 20;
+
+if strcmp(iq_source, 'simradar')
+    ind1 = 14;
+    ind2 = 20;
+else
+    ind1 = 1;
+    ind2 = 1;
+end
 
 % Data window
 d_rep = repmat(d, [1 dm2 dm3]);
@@ -556,46 +562,171 @@ if plot_save_flag
     print(['~/Documents/imgs/DPSD/' iq_source '_' signal_type '_sPHV'], '-dpng')
 end
 
-% figure(5)
-% 
-% subplot(1,2,1)
-% yyaxis left
-% semilogy(vvx, abs(sSH.f(:,ind1,ind2)), '-k', 'LineWidth', 1)
-% xlabel('Doppler velocity {\it v_r}')
-% ylabel('PSD')
-% yyaxis right
-% plot(vvx, squeeze(mean(10*log10(sZDR.cf(:,ind1,ind2)) - 10*log10(sZDR.auf(:,ind1,ind2)), 2)), '-b')
-% ylabel('sZ_{DR}')
-% title(['\DeltasZ_{DR} (K=' num2str(K) ')'])
-% xlim([-va va])
-% ylim([-10 10])
-% axis square
-% grid on
-% 
-% subplot(1,2,2)
-% yyaxis left
-% semilogy(vvx, abs(sSH.f(:,ind1,ind2)), '-k', 'LineWidth', 1)
-% xlabel('Doppler velocity {\it v_r}')
-% ylabel('PSD')
-% yyaxis right
-% plot(vvx, squeeze(mean(sPHV.cf(:,ind1,ind2) - sPHV.auf(:,ind1,ind2), 2)), '-b')
-% ylabel('s\rho_{HV}')
-% title(['\Deltas\rho_{HV} (K=' num2str(K) ')'])
-% xlim([-va va])
-% ylim([-1 1])
-% axis square
-% grid on
 
+%%
+
+if strcmp(iq_source, 'yu')
+    figure(5)
+    
+    ax1 = subplot(2,2,1);
+    % DPSD
+    yyaxis left
+    plot(vv, szdr_save, 'k', 'LineWidth', 1.1)
+    ylabel('sZ_{DR} (dB)', 'FontSize', 14)
+    xlim([-va, va])
+    ylim([-5, 5])
+    text(18, 1, 'Debris', 'FontSize', 20)
+    text(-30, 1, 'Rain', 'FontSize', 20)
+    text(-48, 3.4, 'sZ_{DR}', 'FontSize', 14)
+    text(-48, -3.5, 'sS_V', 'FontSize', 14, 'Color', [0.6 0.6 0.6])
+    % PSD
+    yyaxis right
+    hs1 = semilogy(vv, Sv, 'LineWidth', 1);
+    hs1.Color = [0.6 0.6 0.6];
+    hs1.LineStyle = '-.';
+    ylabel('sS_V', 'FontSize', 14)
+    ax1.YAxis(1).Color = 'k';
+    ax1.YAxis(2).Color = [0.6 0.6 0.6];
+    grid on
+    title('(a) Input sZ_{DR}, sS_V', 'FontSize', 14)
+    xlabel('{\it v} (m s^{-1})', 'FontSize', 14)
+    %legend('sZ_{DR}', 'sS_V', 'Location', 'northwest')
+    
+    
+    ax2 = subplot(2,2,2);
+    % DPSD
+    yyaxis left
+    plot(vv, sphv_save, 'k', 'LineWidth', 1.1)
+    ylabel('s\rho_{HV}', 'FontSize', 14)
+    xlim([-va, va])
+    ylim([0, 1])
+    text(18, 0.6, 'Debris', 'FontSize', 20)
+    text(-30, 0.6, 'Rain', 'FontSize', 20)
+    text(-48, 0.95, 's\rho_{HV}', 'FontSize', 14)
+    text(-48, 0.15, 'sS_V', 'FontSize', 14, 'Color', [0.6 0.6 0.6])
+    % PSD
+    yyaxis right
+    hs2 = semilogy(vv, Sv, 'LineWidth', 1);
+    hs2.Color = [0.6 0.6 0.6];
+    hs2.LineStyle = '-.';
+    ylabel('sS_V', 'FontSize', 14)
+    ax2.YAxis(1).Color = 'k';
+    ax2.YAxis(2).Color = [0.6 0.6 0.6];
+    grid on
+    title('(b) Input s\rho_{HV}, sS_V', 'FontSize', 14)
+    xlabel('{\it v} (m s^{-1})', 'FontSize', 14)
+    %legend('s\rho_{HV}', 'sS_V', 'Location', 'northwest')
+    
+    
+    ax3 = subplot(2,2,3);
+    % DPSD
+    yyaxis left
+    plot(vvx, 10*log10(sZDR.cf(:,ind1,ind2)), 'k', 'LineWidth', 1.1)
+    ylabel('sZ_{DR} (dB)', 'FontSize', 14)
+    xlim([-va, va])
+    ylim([-15, 15])
+    text(-48, -1.8, 'sZ_{DR}', 'FontSize', 14)
+    text(-47, -13.5, 'sS_H', 'FontSize', 14, 'Color', [0.6 0.6 0.6])
+    % PSD
+    yyaxis right
+    hs3 = semilogy(vvx, abs(sSH.f(:,ind1,ind2)), 'LineWidth', 1);
+    hs3.Color = [0.6 0.6 0.6];
+    hs3.LineStyle = '-.';
+    ylabel('sS_H', 'FontSize', 14)
+    ax3.YAxis(1).Color = 'k';
+    ax3.YAxis(2).Color = [0.6 0.6 0.6];
+    grid on
+    title('(c) Output sZ_{DR}, sS_H', 'FontSize', 14)
+    xlabel('{\it v} (m s^{-1})', 'FontSize', 14)
+    %legend('sZ_{DR}', 'sS_H', 'Location', 'northwest')
+    
+    
+    ax4 = subplot(2,2,4);
+    % DPSD
+    yyaxis left
+    plot(vvx, sPHV.cf(:,ind1,ind2), 'k', 'LineWidth', 1.1)
+    ylabel('s\rho_{HV}', 'FontSize', 14)
+    xlim([-va, va])
+    ylim([0, 1])
+    text(-48, 0.89, 's\rho_{HV}', 'FontSize', 14)
+    text(-47, 0.06, 'sS_H', 'FontSize', 14, 'Color', [0.6 0.6 0.6])
+    % PSD
+    yyaxis right
+    hs4 = semilogy(vvx, abs(sSH.f(:,ind1,ind2)), 'LineWidth', 1);
+    hs4.Color = [0.6 0.6 0.6];
+    hs4.LineStyle = '-.';
+    ylabel('sS_H', 'FontSize', 14)
+    ax4.YAxis(1).Color = 'k';
+    ax4.YAxis(2).Color = [0.6 0.6 0.6];
+    grid on
+    title('(d) Output s\rho_{HV}, sS_H', 'FontSize', 14)
+    xlabel('{\it v} (m s^{-1})', 'FontSize', 14)
+    
+    print('~/Documents/emulator-ex', '-dpng')
+    
+end
+
+if strcmp(iq_source, 'simradar')
+    
+    figure(5)
+    
+    ax1 = subplot(2,1,1);
+    % DPSD
+    yyaxis left
+    plot(vvx, 10*log10(sZDR.cf(:,ind1,ind2)), 'k', 'LineWidth', 1.1)
+    ylabel('sZ_{DR} (dB)', 'FontSize', 14)
+    xlim([-va, va])
+    ylim([-15, 15])
+    %text(-98, -1.8, 'sZ_{DR}', 'FontSize', 14)
+    %text(-97, -12, 'sS_H', 'FontSize', 14, 'Color', [0.6 0.6 0.6])
+    % PSD
+    yyaxis right
+    hs1 = semilogy(vvx, abs(sSH.f(:,ind1,ind2)), 'LineWidth', 1);
+    hs1.Color = [0.6 0.6 0.6];
+    hs1.LineStyle = '-.';
+    ylabel('sS_H', 'FontSize', 14)
+    ax1.YAxis(1).Color = 'k';
+    ax1.YAxis(2).Color = [0.6 0.6 0.6];
+    grid on
+    title('(a) sZ_{DR}, sS_H', 'FontSize', 14)
+    xlabel('{\it v} (m s^{-1})', 'FontSize', 14)
+    legend('sZ_{DR}', 'sS_H', 'Location', 'northwest')
+    
+    ax2 = subplot(2,1,2);
+    % DPSD
+    yyaxis left
+    plot(vvx, sPHV.cf(:,ind1,ind2), 'k', 'LineWidth', 1.1)
+    ylabel('s\rho_{HV}', 'FontSize', 14)
+    xlim([-va, va])
+    ylim([0, 1])
+    %text(-98, 0.92, 's\rho_{HV}', 'FontSize', 14)
+    %text(-97, 0.09, 'sS_H', 'FontSize', 14, 'Color', [0.6 0.6 0.6])
+    % PSD
+    yyaxis right
+    hs2 = semilogy(vvx, abs(sSH.f(:,ind1,ind2)), 'LineWidth', 1);
+    hs2.Color = [0.6 0.6 0.6];
+    hs2.LineStyle = '-.';
+    ylabel('sS_H', 'FontSize', 14)
+    ax2.YAxis(1).Color = 'k';
+    ax2.YAxis(2).Color = [0.6 0.6 0.6];
+    grid on
+    title('(b) s\rho_{HV}, sS_H', 'FontSize', 14)
+    xlabel('{\it v} (m s^{-1})', 'FontSize', 14)
+    legend('s\rho_{HV}', 'sS_V', 'Location', 'northwest')
+    
+    
+    
+end
 
 
 % Save variables into .mat file
-if strcmp(iq_source, 'simradar')
-    filename = erase(filename, [sim_dir '/']);
-    save_fname = ['DPSD_' filename(1:end-4)];
-else
-    save_fname = ['DPSD_emulator-K' num2str(K)];
-end
-
-save(['~/Documents/code/DPSD/dpsd_outputs/' iq_source '/' signal_type '/x100/' save_fname '.mat'],...
-    'sZDR', 'sPHV', 'sSH', 'sSV', 'sSX', 'iqh', 'iqv', 'vvx', 'd', 'params');
+% if strcmp(iq_source, 'simradar')
+%     filename = erase(filename, [sim_dir '/']);
+%     save_fname = ['DPSD_' filename(1:end-4)];
+% else
+%     save_fname = ['DPSD_emulator-K' num2str(K)];
+% end
+% 
+% save(['~/Documents/code/DPSD/dpsd_outputs/' iq_source '/' signal_type '/x100/' save_fname '.mat'],...
+%     'sZDR', 'sPHV', 'sSH', 'sSV', 'sSX', 'iqh', 'iqv', 'vvx', 'd', 'params');
 

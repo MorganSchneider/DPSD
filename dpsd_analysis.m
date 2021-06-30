@@ -18,11 +18,11 @@ win = nuttallwin(100);
 
 % number of debris
 dn = 100000;
-els = {'2.0', '2.5', '3.0', '3.5', '4.0', '4.5', '5.0'};
+els = {'0.5', '1.0', '1.5', '2.0', '2.5', '3.0', '3.5', '4.0', '4.5', '5.0'};
 
 
 %%% Rain %%%
-rain_dir = '~/Documents/code/DPSD/dpsd_outputs/simradar/rain/x100';
+rain_dir = '~/Documents/code/DPSD/dpsd_outputs/simradar/rain';
 rain = struct('vh', [], 'vv', [], 'szdr', [], 'sphv', [], 'psd', []);
 
 for elx = 1:7
@@ -39,7 +39,7 @@ M = size(iqh,1);
     
 %%% Multi %%%
     
-mult_dir = '~/Documents/code/DPSD/dpsd_outputs/simradar/multi/x100';
+mult_dir = '~/Documents/code/DPSD/dpsd_outputs/simradar/multi';
 mult = struct('vh', [], 'vv', [], 'szdr', [], 'sphv', [], 'psd', []);
     
 for elx = 1:7
@@ -295,26 +295,28 @@ sphv_var_rain = movvar(rain.sphv, n,0,1,'omitnan','Endpoints','shrink');
 sphv_var_debr = movvar(debris.sphv, n,0,1,'omitnan','Endpoints','shrink');
 sphv_var_mult = movvar(mult.sphv, n,0,1,'omitnan','Endpoints','shrink');
 
+
+
 % sphv_var_rain = sphv_var_rain(rain.psd >= pthres);
 % sphv_var_debr = sphv_var_debr(mult.psd >= pthres);
 % sphv_var_mult = sphv_var_mult(mult.psd >= pthres);
 
-var_bins = 0.005:0.005:0.3;
+pvar_bins = 0.005:0.005:0.3;
 
 figure(14)
 
 subplot(1,3,1)
-histogram(sphv_var_rain, var_bins)
+histogram(sphv_var_rain, pvar_bins)
 title(['Rain ' num2str(n) 'pt running variance'])
 %ylim([0 1e4])
 
 subplot(1,3,2)
-histogram(sphv_var_debr, var_bins)
+histogram(sphv_var_debr, pvar_bins)
 title(['Debris ' num2str(n) 'pt running variance'])
 %ylim([0 10e4])
 
 subplot(1,3,3)
-histogram(sphv_var_mult, var_bins)
+histogram(sphv_var_mult, pvar_bins)
 title(['Multi ' num2str(n) 'pt running variance'])
 %ylim([0 10e4])
 
@@ -366,7 +368,7 @@ title('Rain sPHV', 'FontSize', 20)
 
 subplot(2,3,3)
 yyaxis left
-histogram(sphv_var_debr, var_bins)
+histogram(sphv_var_debr, pvar_bins)
 yyaxis right
 plot(svar, mem_var_debr, '-k', 'LineWidth', 2)
 ylim([0 2])
@@ -375,7 +377,7 @@ title(['Debris ' num2str(n) 'pt moving var'], 'FontSize', 20)
 
 subplot(2,3,6)
 yyaxis left
-histogram(sphv_var_rain, var_bins)
+histogram(sphv_var_rain, pvar_bins)
 yyaxis right
 plot(svar, mem_var_rain, '-k', 'LineWidth', 2)
 ylim([0 2])
