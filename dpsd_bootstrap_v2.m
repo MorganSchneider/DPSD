@@ -130,7 +130,7 @@ elseif strcmp(iq_source, 'simradar')
 %         sim_dir = '~/Documents/code/DPSD/test_sims/debris';
 %         filename = blib('choosefile', sim_dir, '*.mat');
 %         load(filename);
-%     elseif strcmp(signal_type, 'multi')
+%     elseif strcmp(signal_type, 'realistic')
 %         sim_dir = '~/Documents/code/DPSD/test_sims/multi';
 %         filename = blib('choosefile', sim_dir, '*.mat');
 %         load(filename);
@@ -173,8 +173,8 @@ dm3 = size(iqh,3);
 %ind2 = randsample(dm3,1);
 
 if strcmp(iq_source, 'simradar')
-    ind1 = 14;
-    ind2 = 20;
+    ind1 = 12;
+    ind2 = 19;
 else
     ind1 = 1;
     ind2 = 1;
@@ -669,52 +669,75 @@ end
 if strcmp(iq_source, 'simradar')
     
     figure(5)
+    clf
     
     ax1 = subplot(2,1,1);
     % DPSD
     yyaxis left
-    plot(vvx, 10*log10(sZDR.cf(:,ind1,ind2)), 'k', 'LineWidth', 1.1)
-    ylabel('sZ_{DR} (dB)', 'FontSize', 14)
+    hs = plot(vvx, real(10*log10(sZDR.cf(:,ind1,ind2))), 'LineWidth', 1.4);
+    hs.Color = [0.0 0.0 0.7];
+    hs.LineStyle = '-';
+    ylabel('sZ_{DR} (dB)', 'FontSize', 16)
     xlim([-va, va])
-    ylim([-15, 15])
-    %text(-98, -1.8, 'sZ_{DR}', 'FontSize', 14)
-    %text(-97, -12, 'sS_H', 'FontSize', 14, 'Color', [0.6 0.6 0.6])
+    ylim([-20, 20])
+    text(-95, 11, 'sZ_{DR}', 'FontSize', 17, 'Color', [0.0 0.0 0.7])
+    text(-87, -17, 'sS_H', 'FontSize', 18, 'Color', [0.3 0.3 0.3])
     % PSD
     yyaxis right
-    hs1 = semilogy(vvx, abs(sSH.f(:,ind1,ind2)), 'LineWidth', 1);
-    hs1.Color = [0.6 0.6 0.6];
-    hs1.LineStyle = '-.';
+    hs1 = semilogy(vvx, real(abs(sSH.f(:,ind1,ind2))), 'LineWidth', 2);
+    %hs1.Color = [0.6 0.6 0.6];
+    %hs1.LineStyle = '-.';
+    hs1.Color = [0.5 0.5 0.5];
+    hs1.LineStyle = ':';
     ylabel('sS_H', 'FontSize', 14)
-    ax1.YAxis(1).Color = 'k';
-    ax1.YAxis(2).Color = [0.6 0.6 0.6];
-    grid on
-    title('(a) sZ_{DR}, sS_H', 'FontSize', 14)
-    xlabel('{\it v} (m s^{-1})', 'FontSize', 14)
-    legend('sZ_{DR}', 'sS_H', 'Location', 'northwest')
+    ax1.YAxis(1).Color = [0.0 0.0 0.7];
+    ax1.YAxis(2).Color = [0.3 0.3 0.3];
+    %grid on
+    %title('(a) sZ_{DR}, sS_H', 'FontSize', 14)
+    title('Spectral differential reflectivity (sZ_{DR})', 'FontSize', 16)
+    %xlabel('{\it v} (m s^{-1})', 'FontSize', 14)
+    %legend('sZ_{DR}', 'sS_H', 'Location', 'northwest')
     
     ax2 = subplot(2,1,2);
     % DPSD
     yyaxis left
-    plot(vvx, sPHV.cf(:,ind1,ind2), 'k', 'LineWidth', 1.1)
-    ylabel('s\rho_{HV}', 'FontSize', 14)
+    hs = plot(vvx, real(sPHV.cf(:,ind1,ind2)), 'LineWidth', 1.4);
+    hs.Color = [0.7 0.0 0.0];
+    ylabel('s\rho_{HV}', 'FontSize', 16)
     xlim([-va, va])
-    ylim([0, 1])
-    %text(-98, 0.92, 's\rho_{HV}', 'FontSize', 14)
-    %text(-97, 0.09, 'sS_H', 'FontSize', 14, 'Color', [0.6 0.6 0.6])
+    ylim([-0.2, 1.2])
+    yticks(0:0.2:1)
+    text(-92, 1.1, 's\rho_{HV}', 'FontSize', 18, 'Color', [0.6 0.0 0.0])
+    text(-87, -0.09, 'sS_H', 'FontSize', 18, 'Color', [0.3 0.3 0.3])
     % PSD
     yyaxis right
-    hs2 = semilogy(vvx, abs(sSH.f(:,ind1,ind2)), 'LineWidth', 1);
-    hs2.Color = [0.6 0.6 0.6];
-    hs2.LineStyle = '-.';
+    hs2 = semilogy(vvx, real(abs(sSH.f(:,ind1,ind2))), 'LineWidth', 2);
+    %hs2.Color = [0.6, 0.6, 0.6];
+    %hs2.LineStyle = '-.';
+    hs2.Color = [0.5 0.5 0.5];
+    hs2.LineStyle = ':';
     ylabel('sS_H', 'FontSize', 14)
-    ax2.YAxis(1).Color = 'k';
-    ax2.YAxis(2).Color = [0.6 0.6 0.6];
-    grid on
-    title('(b) s\rho_{HV}, sS_H', 'FontSize', 14)
-    xlabel('{\it v} (m s^{-1})', 'FontSize', 14)
-    legend('s\rho_{HV}', 'sS_V', 'Location', 'northwest')
+    ax2.YAxis(1).Color = [0.7 0.0 0.0];
+    ax2.YAxis(2).Color = [0.3 0.3 0.3];
+    %grid on
+    %title('(b) s\rho_{HV}, sS_H', 'FontSize', 14)
+    title('Spectral correlation coefficient (s\rho_{HV})', 'FontSize', 16)
+    xlabel('{\it v} (m s^{-1})', 'FontSize', 16)
+    %legend('s\rho_{HV}', 'sS_V', 'Location', 'northwest')
     
+    if strcmp(signal_type, 'multi')
+        signal_type = 'realistic';
+    end
+    sig_type = [upper(signal_type(1)), signal_type(2:end)];
     
+    annotation('textbox', [0.32 0.94 0.4 0.05], 'String', [sig_type ' signal DPSDs'],...
+       'FontSize',18,'FontWeight','bold','EdgeColor','k','LineWidth',1,...
+       'HorizontalAlignment','center','VerticalAlignment','middle')
+    
+    set(gcf, 'Units', 'Inches', 'Position', [6 8 8 9])
+    ax1.Position(2) = 0.54;
+    
+    print(['~/Documents/DPSD-' signal_type '-ex'], '-dpng')
     
 end
 
