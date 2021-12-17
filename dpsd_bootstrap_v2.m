@@ -12,7 +12,7 @@ K = 20; % number of bootstrapped pseudorealizations
 % if strcmp(signal_type, 'rain') || strcmp(signal_type, 'multi')
 %     cx = 'DCU';
 % else
-%     cx = 'TCU';
+%     cx = 'TC';
 % end
 % el = {'2.0', '2.5', '3.0', '3.5', '4.0', '4.5', '5.0'};
 
@@ -680,8 +680,8 @@ if strcmp(iq_source, 'simradar')
     ylabel('sZ_{DR} (dB)', 'FontSize', 16)
     xlim([-va, va])
     ylim([-20, 20])
-    text(-95, 11, 'sZ_{DR}', 'FontSize', 17, 'Color', [0.0 0.0 0.7])
-    text(-87, -17, 'sS_H', 'FontSize', 18, 'Color', [0.3 0.3 0.3])
+%     text(-95, 11, 'sZ_{DR}', 'FontSize', 17, 'Color', [0.0 0.0 0.7])
+%     text(-87, -17, 'sS_H', 'FontSize', 18, 'Color', [0.3 0.3 0.3])
     % PSD
     yyaxis right
     hs1 = semilogy(vvx, real(abs(sSH.f(:,ind1,ind2))), 'LineWidth', 2);
@@ -691,7 +691,7 @@ if strcmp(iq_source, 'simradar')
     hs1.LineStyle = ':';
     ylabel('sS_H', 'FontSize', 14)
     ax1.YAxis(1).Color = [0.0 0.0 0.7];
-    ax1.YAxis(2).Color = [0.3 0.3 0.3];
+    ax1.YAxis(2).Color = 'r';
     %grid on
     %title('(a) sZ_{DR}, sS_H', 'FontSize', 14)
     title('Spectral differential reflectivity (sZ_{DR})', 'FontSize', 16)

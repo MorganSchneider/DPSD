@@ -1,7 +1,5 @@
-clear all
+
 %close all
-var_save_flag = 0;
-plot_save_flag = 0;
 
 %%%%% Things to try???
 % -stricter thresholds for debris to get more rain flags
@@ -26,22 +24,37 @@ plot_save_flag = 0;
 % d3 1000000 at 0.5 vs d3 1000000 at 5.0
 % do this for PPIs and histograms
 
+[st,~] = dbstack('-completenames');
+if length(st) > 1
+    external_call = 1;
+else
+    external_call = 0;
+end
 
-% % Load IQ data
 
-x = input(['Choose I/Q data source: ', newline,...
-    '  (1) SimRadar', newline,...
-    '  (2) KOUN', newline]);
 
-if x == 1
-    LES = 'twocell';
-    base_dir = ['~/Documents/sims/' LES];
-    sim_dir = uigetdir(base_dir); % Location of SimRadar output files
-    filename = blib('choosefile', sim_dir, 'sim-*.mat');
+% Load IQ data
+if ~external_call
+    plot_flag = 0;
+    var_save_flag = 1;
+    plot_save_flag = 0;
+    
+    x = input(['Choose I/Q data source: ', newline,...
+        '  (1) SimRadar', newline,...
+        '  (2) KOUN', newline]);
+end
+
+if x == 1 %if SimRadar
+    if ~external_call
+        LES = 'twocell';
+        base_dir = ['~/Documents/sims/' LES];
+        data_dir = uigetdir(base_dir); % Location of SimRadar output files
+        filename = blib('choosefile', data_dir, 'sim-*.mat');
+    end
     load(filename);
     
     % Separate path name and file name for saving files later
-    fname = erase(filename, [sim_dir '/']);
+    fname = erase(filename, [data_dir '/']);
     fname = erase(fname, '.mat');
     dind = regexp(fname,'d');
     nind = regexp(fname,'n');
@@ -56,13 +69,20 @@ if x == 1
     
     img_dir = ['~/Documents/imgs/' LES '/d' dtype '/DPSD/'];
     
-elseif x == 2
-    data_dir = '~/Documents/code/obsdata/';
+    % Put all the bulk variables from checkiq.m into one structure
+    params = struct('zh', zh, 'zdr', zdr, 'phv', rhohv, 'xx', xx, 'yy', yy, 'zz', zz, 'va', va);
     
-    filename = blib('choosefile', data_dir, '*.mat');
+elseif x == 2 %if KOUN
+    if ~external_call
+        data_dir = '~/Documents/code/obsdata/';
+        filename = blib('choosefile', data_dir, '*.mat');
+        
+        if ~isfile(filename)
+            process_data
+        end
+    end
+    
     load(filename);
-    
-    process_data
     
     fname = erase(filename, data_dir);
     fname = erase(fname, '.mat');
@@ -72,12 +92,16 @@ elseif x == 2
     xx = xx(tds.xinds, tds.yinds);
     yy = yy(tds.xinds, tds.yinds);
     zz = zz(tds.xinds, tds.yinds);
+    zh = zh(tds.xinds, tds.yinds);
     zdr = zdr(tds.xinds, tds.yinds);
     rhohv = rhohv(tds.xinds, tds.yinds);
     vr = vr(tds.xinds, tds.yinds);
     vr_unfolded = vr_unfolded(tds.xinds, tds.yinds);
     
     img_dir = '~/Documents/imgs/obsdata/';
+    
+    % Put all the bulk variables from checkiq.m into one structure
+    params = struct('zh', zh, 'zdr', zdr, 'phv', rhohv, 'xx', xx, 'yy', yy, 'zz', zz, 'va', va);
     
 end
 
@@ -89,7 +113,7 @@ end
 
 
 % Put all the bulk variables from checkiq.m into one structure
-params = struct('zdr', zdr, 'phv', rhohv, 'xx', xx, 'yy', yy, 'zz', zz, 'va', va);
+%params = struct('zh', zh, 'vr', vr, 'zdr', zdr, 'phv', rhohv, 'xx', xx, 'yy', yy, 'zz', zz, 'va', va);
 
 % if simulation contains multiple sweeps
 if size(iqh,4) > 1
@@ -106,7 +130,7 @@ vvx = flip(linspace(-va+1, va, M));
 d = nuttallwin(M); % data window
 
 % Uncorrected PSD and velocity
-psd_old = fftshift(abs(fft(iqh.*d, M, 1)).^2, 1);
+PSD.old = fftshift(abs(fft(iqh.*d, M, 1)).^2, 1);
 vr_old = vr;
 
 % Calculate DPSDs
@@ -120,34 +144,34 @@ vr_old = vr;
 
 
 % Filter debris from PSD
-psd_filt = psd_old;
+PSD.dca = PSD.old;
 obj_class(1) = 0; % can't remember why I did this tbh but I didn't want endpoints marked as debris?
 obj_class(end) = 0;
-psd_filt(obj_class>0.33) = 0; % set all debris coefficients to 0
+PSD.dca(obj_class>0.33) = 0; % set all debris coefficients to 0
 
 % Velocity recalculation -- need to make this more efficient than a loop!
 var_norm = svar.phv ./ max(svar.phv,1); % normalize variance
 b1 = 6; % aggressiveness of filter
 var_inv = (1 - var_norm).^b1; % invert normalized variance
-psd_new_var = var_inv .* psd_old;
+PSD.var = var_inv .* PSD.old;
 
 b2 = 4; % aggressiveness of filter
-psd_new_agg = (agg.rain.^b2) .* psd_old;
+PSD.agg = (agg.rain.^b2) .* PSD.old;
 
 vr_new.dca = zeros(size(iqh,2), size(iqh,3));
 vr_new.var = vr_new.dca;
 vr_new.agg = vr_new.dca;
 for i = 1:size(iqh,2)
     for j = 1:size(iqh,3)
-        vr_temp = calc_velocity_spectral(psd_filt(:,i,j), M, Ts, lambda);
+        vr_temp = calc_velocity_spectral(PSD.dca(:,i,j), M, Ts, lambda);
         if length(vr_temp) > 1
             vr_new.dca(i,j) = vr_old(i,j);
         else
             vr_new.dca(i,j) = vr_temp;
         end
         
-        vr_new.var(i,j) = calc_velocity_spectral(psd_new_var(:,i,j), M, Ts, lambda);
-        vr_new.agg(i,j) = calc_velocity_spectral(psd_new_agg(:,i,j), M, Ts, lambda);
+        vr_new.var(i,j) = calc_velocity_spectral(PSD.var(:,i,j), M, Ts, lambda);
+        vr_new.agg(i,j) = calc_velocity_spectral(PSD.agg(:,i,j), M, Ts, lambda);
     end
 end
 
@@ -155,21 +179,129 @@ clear vr
 
 
 if x == 1
-    rain_dir = strrep(sim_dir, ['debris' dtype], 'nodebris');
-    rain_file = [rain_dir '/' strrep(fname, ['d' dtype 'n' dnum], 'nodebris')];
-    load([rain_file '.mat']);
+    rain_dir = strrep(data_dir, ['debris' dtype], 'nodebris');
+    rain_file = [rain_dir '/' strrep(fname, ['DCU-d' dtype 'n' dnum], 'U-nodebris')];
+    rain_sim = load([rain_file '.mat']);
     
-    iqh = permute(iqh, [3 1 2]);
-    vr_truth = vr;
-    psd_truth = fftshift(abs(fft(iqh.*d, M, 1)).^2, 1);
+    iqh_rain = permute(rain_sim.iqh, [3 1 2]);
+    vr_truth = rain_sim.vr;
+    PSD.truth = fftshift(abs(fft(iqh_rain.*d, M, 1)).^2, 1);
+end
+
+
+if x == 1
+    dv = struct('uncorr', [], 'dca', [], 'var', [], 'agg', []);
+    
+    dv.uncorr = struct('data', vr_old - vr_truth,...
+        'mean', mean(vr_old - vr_truth, 'all'),...
+        'prc25', prctile(vr_old - vr_truth, 25, 'all'),...
+        'prc75', prctile(vr_old - vr_truth, 75, 'all'));
+    
+    dv.dca = struct('data', vr_new.dca - vr_truth,...
+        'mean', mean(vr_new.dca - vr_truth, 'all'),...
+        'prc25', prctile(vr_new.dca - vr_truth, 25, 'all'),...
+        'prc75', prctile(vr_new.dca - vr_truth, 75, 'all'));
+    
+    dv.var = struct('data', vr_new.var - vr_truth,...
+        'mean', mean(vr_new.var - vr_truth, 'all'),...
+        'prc25', prctile(vr_new.var - vr_truth, 25, 'all'),...
+        'prc75', prctile(vr_new.var - vr_truth, 75, 'all'));
+    
+    dv.agg = struct('data', vr_new.agg - vr_truth,...
+        'mean', mean(vr_new.agg - vr_truth, 'all'),...
+        'prc25', prctile(vr_new.agg - vr_truth, 25, 'all'),...
+        'prc75', prctile(vr_new.agg - vr_truth, 75, 'all'));
+    
+elseif x == 2
+    i1 = find(vr_new.dca.*vr_unfolded < 0 & vr_unfolded < 0);
+    i2 = find(vr_new.dca.*vr_unfolded < 0 & vr_unfolded > 0);
+    vr_new.dca(i1) = vr_new.dca(i1) - 2*va;
+    vr_new.dca(i2) = vr_new.dca(i2) + 2*va;
+    
+    i1 = find(vr_new.var.*vr_unfolded < 0 & vr_unfolded < 0);
+    i2 = find(vr_new.var.*vr_unfolded < 0 & vr_unfolded > 0);
+    vr_new.var(i1) = vr_new.var(i1) - 2*va;
+    vr_new.var(i2) = vr_new.var(i2) + 2*va;
+    
+    i1 = find(vr_new.agg.*vr_unfolded < 0 & vr_unfolded < 0);
+    i2 = find(vr_new.agg.*vr_unfolded < 0 & vr_unfolded > 0);
+    vr_new.agg(i1) = vr_new.agg(i1) - 2*va;
+    vr_new.agg(i2) = vr_new.agg(i2) + 2*va;
+    
+    dv = struct('dca', vr_new.dca - vr_unfolded,...
+                'var', vr_new.var - vr_unfolded,...
+                'agg', vr_new.agg - vr_unfolded);
+    
+end
+
+
+%% Save variables
+
+
+if var_save_flag
+    if x == 1 %if SimRadar
+        save([data_dir '/dpsd-' erase(fname,'sim-'), '.mat'], 'szdr', 'sphv', 'svar',...
+            'spsd', 'iqh', 'iqv', 'vr_old', 'vr_new', 'vr_truth', 'dv', 'obj_class',...
+            'agg', 'memf', 'vvx', 'PSD', 'params');
+        
+        % szdr, sphv: [M,r,az]
+        %
+        % svar: [1x1 struct]
+        %     Fields (phv, zdr): [M,r,az]
+        %
+        % spsd: [1x1 struct] -> Periodogram PSD estimates
+        %     Fields (h, v, x): [M,r,az]
+        %
+        % iqh, iqv: [M,r,az]
+        %
+        % vr_old, vr_truth: [r,az]
+        %
+        % vr_new: [1x1 struct]
+        %     Fields (dca, var, agg): [r,az]
+        %
+        % dv: [1x1] struct
+        %     Fields (uncorr, dca, var, agg): [1x1 struct]
+        %       Subfield (data): [r,az]
+        %       Subfields (mean, prc25, prc75): Single float
+        %
+        % obj_class: [M,r,az] -> 0=rain, 1=debris
+        %
+        % agg: [1x1 struct]
+        %     Fields (debr, rain): [M,r,az]
+        %
+        % memf: [1x1 struct]
+        %     Fields (debr, rain): [1x1 struct]
+        %       Subfields (zdr, phv, pvar, zvar): [M,r,az]
+        %
+        % vvx: [1,M] -> Velocity plotting axis
+        %
+        % PSD: [1x1 struct] -> Time-series PSD estimates
+        %     Fields (old, dca, var, agg, truth): [M,r,az]
+        %
+        % params: [1x1 struct]
+        %     Fields (xx, yy, zz, zh, zdr, phv): [r,az]
+        %     Field (va): Single float
+        
+        
+    elseif x == 2 %if KOUN
+        save([data_dir '/dpsd-' fname, '.mat'], 'szdr', 'sphv', 'svar', 'spsd',...
+            'iqh', 'iqv', 'vr_old', 'vr_new', 'vr_unfolded', 'dv', 'obj_class',...
+            'agg', 'memf', 'vvx', 'PSD', 'params');
+    end
+end
+
+
+if ~plot_flag
+    return
 end
 
 %% Plots for SimRadar
 
-
 if x == 1
     
     if false
+        
+        % PPIs of truth, original, and corrected velocity for all methods
         figure(1)
         clf
         
@@ -250,7 +382,7 @@ if x == 1
         
     end
     
-    
+    % PPIs of truth, original, and aggregation-corrected velocity
     figure(2)
     clf
     
@@ -302,33 +434,35 @@ if x == 1
     
 
     % Plot error of uncorrected and corrected velocities
-    dv_uncorr = vr_old - vr_truth;
-    dv_corr = vr_new.dca - vr_truth;
-    dv_corr_var = vr_new.var - vr_truth;
-    dv_corr_agg = vr_new.agg - vr_truth;
     
-    dv_uncorr_mean = mean(dv_uncorr, 'all');
-    dv_corr_mean = mean(dv_corr, 'all');
-    dv_corr_var_mean = mean(dv_corr_var, 'all');
-    dv_corr_agg_mean = mean(dv_corr_agg, 'all');
-    
-    dv_uncorr_25 = prctile(dv_uncorr, 25, 'all');
-    dv_corr_25 = prctile(dv_corr, 25, 'all');
-    dv_corr_var_25 = prctile(dv_corr_var, 25, 'all');
-    dv_corr_agg_25 = prctile(dv_corr_agg, 25, 'all');
-    
-    dv_uncorr_75 = prctile(dv_uncorr, 75, 'all');
-    dv_corr_75 = prctile(dv_corr, 75, 'all');
-    dv_corr_var_75 = prctile(dv_corr_var, 75, 'all');
-    dv_corr_agg_75 = prctile(dv_corr_agg, 75, 'all');
+%     dv.uncorr.data = vr_old - vr_truth;
+%     dv.dca.data = vr_new.dca - vr_truth;
+%     dv.var.data = vr_new.var - vr_truth;
+%     dv.agg.data = vr_new.agg - vr_truth;
+%     
+%     dv.uncorr.mean = mean(dv.uncorr.data, 'all');
+%     dv.dca.mean = mean(dv.dca.data, 'all');
+%     dv.var.mean = mean(dv.var.data, 'all');
+%     dv.agg.mean = mean(dv.agg.data, 'all');
+%     
+%     dv.uncorr.prc25 = prctile(dv.uncorr.data, 25, 'all');
+%     dv.dca.prc25 = prctile(dv.dca.data, 25, 'all');
+%     dv.var.prc25 = prctile(dv.var.data, 25, 'all');
+%     dv.agg.prc25 = prctile(dv.agg.data, 25, 'all');
+%     
+%     dv.uncorr.prc75 = prctile(dv.uncorr.data, 75, 'all');
+%     dv.dca.prc75 = prctile(dv.dca.data, 75, 'all');
+%     dv.var.prc75 = prctile(dv.var.data, 75, 'all');
+%     dv.agg.prc75 = prctile(dv.agg.data, 75, 'all');
     
     if false
         
+        % PPI/histograms of DCA-corrected velocity bias
         figure(5)
         clf
         
         ha = subplot(2,2,1);
-        hs = pcolor(xx, yy, dv_uncorr(:,:,1));
+        hs = pcolor(xx, yy, dv.uncorr.data(:,:,1));
         caxis([-1 1] * va)
         colormap(ha, blib('rbmap'))
         shading flat
@@ -341,7 +475,7 @@ if x == 1
         ylabel('y (m)', 'FontSize', 14)
         
         ha(2) = subplot(2,2,2);
-        hs(2) = pcolor(xx, yy, dv_corr(:,:,1));
+        hs(2) = pcolor(xx, yy, dv.dca.data(:,:,1));
         caxis([-1 1] * va)
         colormap(ha(2), blib('rbmap'))
         shading flat
@@ -354,32 +488,32 @@ if x == 1
         ylabel('y (m)', 'FontSize', 14)
         
         ha(3) = subplot(2,2,3);
-        histogram(dv_uncorr, -va:5:va)
+        histogram(dv.uncorr.data, -va:5:va)
         hold on
-        plot(ones(1,2)*dv_uncorr_mean, [0 350], 'k', 'LineWidth', 1.2)
-        plot(ones(1,2)*dv_uncorr_25, [0 350], '--k', 'LineWidth', 1.2)
-        plot(ones(1,2)*dv_uncorr_75, [0 350], '--k', 'LineWidth', 1.2)
+        plot(ones(1,2)*dv.uncorr.mean, [0 350], 'k', 'LineWidth', 1.2)
+        plot(ones(1,2)*dv.uncorr.prc25, [0 350], '--k', 'LineWidth', 1.2)
+        plot(ones(1,2)*dv.uncorr.prc75, [0 350], '--k', 'LineWidth', 1.2)
         hold off
         title('(c)', 'FontSize', 14)
         xlabel('v_{bias} (m s^{-1})', 'FontSize', 14)
         ylim([0 350])
-        text(-100, 330, ['\mu = ' num2str(double(dv_uncorr_mean),'%.2f')], 'FontSize', 13)
-        text(-100, 300, ['Q_1 = ' num2str(double(dv_uncorr_25),'%.2f')], 'FontSize', 13)
-        text(-100, 270, ['Q_3 = ' num2str(double(dv_uncorr_75),'%.2f')], 'FontSize', 13)
+        text(-100, 330, ['\mu = ' num2str(double(dv.uncorr.mean),'%.2f')], 'FontSize', 13)
+        text(-100, 300, ['Q_1 = ' num2str(double(dv.uncorr.prc25),'%.2f')], 'FontSize', 13)
+        text(-100, 270, ['Q_3 = ' num2str(double(dv.uncorr.prc75),'%.2f')], 'FontSize', 13)
         
         ha(4) = subplot(2,2,4);
-        histogram(dv_corr, -va:5:va)
+        histogram(dv.dca.data, -va:5:va)
         hold on
-        plot(ones(1,2)*dv_corr_mean, [0 350], 'k', 'LineWidth', 1.2)
-        plot(ones(1,2)*dv_corr_25, [0 350], '--k', 'LineWidth', 1.2)
-        plot(ones(1,2)*dv_corr_75, [0 350], '--k', 'LineWidth', 1.2)
+        plot(ones(1,2)*dv.dca.mean, [0 350], 'k', 'LineWidth', 1.2)
+        plot(ones(1,2)*dv.dca.prc25, [0 350], '--k', 'LineWidth', 1.2)
+        plot(ones(1,2)*dv.dca.prc75, [0 350], '--k', 'LineWidth', 1.2)
         hold off
         title('(d)', 'FontSize', 14)
         xlabel('v_{bias} (m s^{-1})', 'FontSize', 14)
         ylim([0 350])
-        text(-100, 330, ['\mu = ' num2str(double(dv_corr_mean),'%.2f')], 'FontSize', 13)
-        text(-100, 300, ['Q_1 = ' num2str(double(dv_corr_25),'%.2f')], 'FontSize', 13)
-        text(-100, 270, ['Q_3 = ' num2str(double(dv_corr_75),'%.2f')], 'FontSize', 13)
+        text(-100, 330, ['\mu = ' num2str(double(dv.dca.mean),'%.2f')], 'FontSize', 13)
+        text(-100, 300, ['Q_1 = ' num2str(double(dv.dca.prc25),'%.2f')], 'FontSize', 13)
+        text(-100, 270, ['Q_3 = ' num2str(double(dv.dca.prc75),'%.2f')], 'FontSize', 13)
         
         set(gcf, 'Units', 'inches', 'Position', [10 10 12 8])
         axes('Unit', 'Normalized', 'Position', [0.5 0.48 0.01 0.01])
@@ -393,12 +527,12 @@ if x == 1
         end
         
         
-        
+        % PPI/histograms of variance-corrected velocity bias
         figure(6)
         clf
         
         ha = subplot(2,2,1);
-        hs = pcolor(xx, yy, dv_uncorr(:,:,1));
+        hs = pcolor(xx, yy, dv.uncorr.data(:,:,1));
         caxis([-1 1] * va)
         colormap(ha, blib('rbmap'))
         shading flat
@@ -411,7 +545,7 @@ if x == 1
         ylabel('y (m)', 'FontSize', 14)
         
         ha(2) = subplot(2,2,2);
-        hs(2) = pcolor(xx, yy, dv_corr_var(:,:,1));
+        hs(2) = pcolor(xx, yy, dv.var.data(:,:,1));
         caxis([-1 1] * va)
         colormap(ha(2), blib('rbmap'))
         shading flat
@@ -424,32 +558,32 @@ if x == 1
         ylabel('y (m)', 'FontSize', 14)
         
         ha(3) = subplot(2,2,3);
-        histogram(dv_uncorr, -va:5:va)
+        histogram(dv.uncorr.data, -va:5:va)
         hold on
-        plot(ones(1,2)*dv_uncorr_mean, [0 350], 'k', 'LineWidth', 1.2)
-        plot(ones(1,2)*dv_uncorr_25, [0 350], '--k', 'LineWidth', 1.2)
-        plot(ones(1,2)*dv_uncorr_75, [0 350], '--k', 'LineWidth', 1.2)
+        plot(ones(1,2)*dv.uncorr.mean, [0 350], 'k', 'LineWidth', 1.2)
+        plot(ones(1,2)*dv.uncorr.prc25, [0 350], '--k', 'LineWidth', 1.2)
+        plot(ones(1,2)*dv.uncorr.prc75, [0 350], '--k', 'LineWidth', 1.2)
         hold off
         title('(c)', 'FontSize', 14)
         xlabel('v_{bias} (m s^{-1})', 'FontSize', 14)
         ylim([0 350])
-        text(-100, 330, ['\mu = ' num2str(double(dv_uncorr_mean),'%.2f')], 'FontSize', 13)
-        text(-100, 300, ['Q_1 = ' num2str(double(dv_uncorr_25),'%.2f')], 'FontSize', 13)
-        text(-100, 270, ['Q_3 = ' num2str(double(dv_uncorr_75),'%.2f')], 'FontSize', 13)
+        text(-100, 330, ['\mu = ' num2str(double(dv.uncorr.mean),'%.2f')], 'FontSize', 13)
+        text(-100, 300, ['Q_1 = ' num2str(double(dv.uncorr.prc25),'%.2f')], 'FontSize', 13)
+        text(-100, 270, ['Q_3 = ' num2str(double(dv.uncorr.prc75),'%.2f')], 'FontSize', 13)
         
         ha(4) = subplot(2,2,4);
-        histogram(dv_corr_var, -va:5:va)
+        histogram(dv.var.data, -va:5:va)
         hold on
-        plot(ones(1,2)*dv_corr_var_mean, [0 350], 'k', 'LineWidth', 1.2)
-        plot(ones(1,2)*dv_corr_var_25, [0 350], '--k', 'LineWidth', 1.2)
-        plot(ones(1,2)*dv_corr_var_75, [0 350], '--k', 'LineWidth', 1.2)
+        plot(ones(1,2)*dv.var.mean, [0 350], 'k', 'LineWidth', 1.2)
+        plot(ones(1,2)*dv.var.prc25, [0 350], '--k', 'LineWidth', 1.2)
+        plot(ones(1,2)*dv.var.prc75, [0 350], '--k', 'LineWidth', 1.2)
         hold off
         title('(d)', 'FontSize', 14)
         xlabel('v_{bias} (m s^{-1})', 'FontSize', 14)
         ylim([0 350])
-        text(-100, 330, ['\mu = ' num2str(double(dv_corr_var_mean),'%.2f')], 'FontSize', 13)
-        text(-100, 300, ['Q_1 = ' num2str(double(dv_corr_var_25),'%.2f')], 'FontSize', 13)
-        text(-100, 270, ['Q_3 = ' num2str(double(dv_corr_var_75),'%.2f')], 'FontSize', 13)
+        text(-100, 330, ['\mu = ' num2str(double(dv.var.mean),'%.2f')], 'FontSize', 13)
+        text(-100, 300, ['Q_1 = ' num2str(double(dv.var.prc25),'%.2f')], 'FontSize', 13)
+        text(-100, 270, ['Q_3 = ' num2str(double(dv.var.prc75),'%.2f')], 'FontSize', 13)
         
         set(gcf, 'Units', 'inches', 'Position', [10 10 12 8])
         axes('Unit', 'Normalized', 'Position', [0.5 0.48 0.01 0.01])
@@ -463,12 +597,12 @@ if x == 1
         end
         
         
-        
+        % PPI/histograms of aggregation-corrected velocity bias
         figure(7)
         clf
         
         ha = subplot(2,2,1);
-        hs = pcolor(xx, yy, dv_uncorr(:,:,1));
+        hs = pcolor(xx, yy, dv.uncorr.data(:,:,1));
         caxis([-1 1] * va)
         colormap(ha, blib('rbmap'))
         shading flat
@@ -482,7 +616,7 @@ if x == 1
         ylabel('y (m)', 'FontSize', 14)
         
         ha(2) = subplot(2,2,2);
-        hs(2) = pcolor(xx, yy, dv_corr_agg(:,:,1));
+        hs(2) = pcolor(xx, yy, dv.agg.data(:,:,1));
         caxis([-1 1] * va)
         colormap(ha(2), blib('rbmap'))
         shading flat
@@ -496,32 +630,32 @@ if x == 1
         ylabel('y (m)', 'FontSize', 14)
         
         ha(3) = subplot(2,2,3);
-        histogram(dv_uncorr, -va:5:va)
+        histogram(dv.uncorr.data, -va:5:va)
         hold on
-        plot(ones(1,2)*dv_uncorr_mean, [0 350], 'k', 'LineWidth', 1.2)
-        plot(ones(1,2)*dv_uncorr_25, [0 350], '--k', 'LineWidth', 1.2)
-        plot(ones(1,2)*dv_uncorr_75, [0 350], '--k', 'LineWidth', 1.2)
+        plot(ones(1,2)*dv.uncorr.mean, [0 350], 'k', 'LineWidth', 1.2)
+        plot(ones(1,2)*dv.uncorr.prc25, [0 350], '--k', 'LineWidth', 1.2)
+        plot(ones(1,2)*dv.uncorr.prc75, [0 350], '--k', 'LineWidth', 1.2)
         hold off
         %title('(c)', 'FontSize', 14)
         xlabel('v_{bias} (m s^{-1})', 'FontSize', 14)
         ylim([0 350])
-        text(-100, 330, ['\mu = ' num2str(double(dv_uncorr_mean),'%.2f')], 'FontSize', 13)
-        text(-100, 300, ['Q_1 = ' num2str(double(dv_uncorr_25),'%.2f')], 'FontSize', 13)
-        text(-100, 270, ['Q_3 = ' num2str(double(dv_uncorr_75),'%.2f')], 'FontSize', 13)
+        text(-100, 330, ['\mu = ' num2str(double(dv.uncorr.mean),'%.2f')], 'FontSize', 13)
+        text(-100, 300, ['Q_1 = ' num2str(double(dv.uncorr.prc25),'%.2f')], 'FontSize', 13)
+        text(-100, 270, ['Q_3 = ' num2str(double(dv.uncorr.prc75),'%.2f')], 'FontSize', 13)
         
         ha(4) = subplot(2,2,4);
-        histogram(dv_corr_agg, -va:5:va)
+        histogram(dv.agg.data, -va:5:va)
         hold on
-        plot(ones(1,2)*dv_corr_agg_mean, [0 350], 'k', 'LineWidth', 1.2)
-        plot(ones(1,2)*dv_corr_agg_25, [0 350], '--k', 'LineWidth', 1.2)
-        plot(ones(1,2)*dv_corr_agg_75, [0 350], '--k', 'LineWidth', 1.2)
+        plot(ones(1,2)*dv.agg.mean, [0 350], 'k', 'LineWidth', 1.2)
+        plot(ones(1,2)*dv.agg.prc25, [0 350], '--k', 'LineWidth', 1.2)
+        plot(ones(1,2)*dv.agg.prc75, [0 350], '--k', 'LineWidth', 1.2)
         hold off
         %title('(d)', 'FontSize', 14)
         xlabel('v_{bias} (m s^{-1})', 'FontSize', 14)
         ylim([0 350])
-        text(-100, 330, ['\mu = ' num2str(double(dv_corr_agg_mean),'%.2f')], 'FontSize', 13)
-        text(-100, 300, ['Q_1 = ' num2str(double(dv_corr_agg_25),'%.2f')], 'FontSize', 13)
-        text(-100, 270, ['Q_3 = ' num2str(double(dv_corr_agg_75),'%.2f')], 'FontSize', 13)
+        text(-100, 330, ['\mu = ' num2str(double(dv.agg.mean),'%.2f')], 'FontSize', 13)
+        text(-100, 300, ['Q_1 = ' num2str(double(dv.agg.prc25),'%.2f')], 'FontSize', 13)
+        text(-100, 270, ['Q_3 = ' num2str(double(dv.agg.prc75),'%.2f')], 'FontSize', 13)
         
         set(gcf, 'Units', 'inches', 'Position', [10 10 13 8])
         axes('Unit', 'Normalized', 'Position', [0.5 0.48 0.01 0.01])
@@ -537,13 +671,13 @@ if x == 1
     end
     
     
-    
+    % PPI/histograms of aggregation-corrected velocity bias, but prettier?
     figure(8)
     clf
     
     %ha = subplot(4,2,1);
     ha = subplot(2,2,1);
-    hs = pcolor(xx, yy, dv_uncorr(:,:,1));
+    hs = pcolor(xx, yy, dv.uncorr.data(:,:,1));
     caxis([-1 1] * va)
     colormap(ha, blib('rbmap'))
     shading flat
@@ -558,24 +692,24 @@ if x == 1
     
     %subplot(4,2,2)
     subplot(2,2,2)
-    histogram(dv_uncorr, -va:5:va)
+    histogram(dv.uncorr.data, -va:5:va)
     hold on
-    plot(ones(1,2)*dv_uncorr_mean, [0 350], 'k', 'LineWidth', 1.2)
-    plot(ones(1,2)*dv_uncorr_25, [0 350], '--k', 'LineWidth', 1.2)
-    plot(ones(1,2)*dv_uncorr_75, [0 350], '--k', 'LineWidth', 1.2)
+    plot(ones(1,2)*dv.uncorr.mean, [0 350], 'k', 'LineWidth', 1.2)
+    plot(ones(1,2)*dv.uncorr.prc25, [0 350], '--k', 'LineWidth', 1.2)
+    plot(ones(1,2)*dv.uncorr.prc75, [0 350], '--k', 'LineWidth', 1.2)
     hold off
     %title('(b) v_{bias} distribution', 'FontSize', 16)
     title('Velocity Bias Distribution', 'FontSize', 16)
     %xlabel('v_{bias} (m s^{-1})', 'FontSize', 14)
     ylim([0 350])
-    text(-100, 330, ['\mu = ' num2str(double(dv_uncorr_mean),'%.2f')], 'FontSize', 13)
-    text(-100, 290, ['Q_1 = ' num2str(double(dv_uncorr_25),'%.2f')], 'FontSize', 13)
-    text(-100, 250, ['Q_3 = ' num2str(double(dv_uncorr_75),'%.2f')], 'FontSize', 13)
+    text(-100, 330, ['\mu = ' num2str(double(dv.uncorr.mean),'%.2f')], 'FontSize', 13)
+    text(-100, 290, ['Q_1 = ' num2str(double(dv.uncorr.prc25),'%.2f')], 'FontSize', 13)
+    text(-100, 250, ['Q_3 = ' num2str(double(dv.uncorr.prc75),'%.2f')], 'FontSize', 13)
     
     
     %ha(4) = subplot(4,2,7);
     ha(4) = subplot(2,2,3);
-    hs(4) = pcolor(xx, yy, dv_corr_agg(:,:,1));
+    hs(4) = pcolor(xx, yy, dv.agg.data(:,:,1));
     caxis([-1 1] * va)
     colormap(ha(4), blib('rbmap'))
     shading flat
@@ -590,19 +724,19 @@ if x == 1
     
     %subplot(4,2,8)
     subplot(2,2,4)
-    histogram(dv_corr_agg, -va:5:va)
+    histogram(dv.agg.data, -va:5:va)
     hold on
-    plot(ones(1,2)*dv_corr_agg_mean, [0 350], 'k', 'LineWidth', 1.2)
-    plot(ones(1,2)*dv_corr_agg_25, [0 350], '--k', 'LineWidth', 1.2)
-    plot(ones(1,2)*dv_corr_agg_75, [0 350], '--k', 'LineWidth', 1.2)
+    plot(ones(1,2)*dv.agg.mean, [0 350], 'k', 'LineWidth', 1.2)
+    plot(ones(1,2)*dv.agg.prc25, [0 350], '--k', 'LineWidth', 1.2)
+    plot(ones(1,2)*dv.agg.prc75, [0 350], '--k', 'LineWidth', 1.2)
     hold off
     %title('(h) v_{bias} distribution', 'FontSize', 14)
     %title('(h)', 'FontSize', 16)
     xlabel('v_{bias} (m s^{-1})', 'FontSize', 14)
     ylim([0 350])
-    text(-100, 330, ['\mu = ' num2str(double(dv_corr_agg_mean),'%.2f')], 'FontSize', 13)
-    text(-100, 290, ['Q_1 = ' num2str(double(dv_corr_agg_25),'%.2f')], 'FontSize', 13)
-    text(-100, 250, ['Q_3 = ' num2str(double(dv_corr_agg_75),'%.2f')], 'FontSize', 13)
+    text(-100, 330, ['\mu = ' num2str(double(dv.agg.mean),'%.2f')], 'FontSize', 13)
+    text(-100, 290, ['Q_1 = ' num2str(double(dv.agg.prc25),'%.2f')], 'FontSize', 13)
+    text(-100, 250, ['Q_3 = ' num2str(double(dv.agg.prc75),'%.2f')], 'FontSize', 13)
     
     %set(gcf, 'Units', 'inches', 'Position', [10 10 12 14])
     set(gcf, 'Units', 'inches', 'Position', [10 10 13 8.3])
@@ -636,6 +770,7 @@ if x == 1
     
     if false
         
+        % Plot of sZDR, sPHV, and DCA classification w/ PSD underlaid
         figure(10)
         clf
         
@@ -656,7 +791,7 @@ if x == 1
         ax1.YAxis(2).Color = [0.6 0.6 0.6];
         grid on
         title('(a) sZ_{DR}, sS_H', 'FontSize', 14)
-        xlabel('{\it v} (m s^{-1})', 'FontSize', 14)
+        xlabel('v (m s^{-1})', 'FontSize', 14)
         %legend('sZ_{DR}', 'sS_V', 'Location', 'northwest')
         % text(18, 1, 'Debris', 'FontSize', 20)
         % text(-30, 1, 'Rain', 'FontSize', 20)
@@ -681,7 +816,7 @@ if x == 1
         ax2.YAxis(2).Color = [0.6 0.6 0.6];
         grid on
         title('(b) s\rho_{HV}, sS_H', 'FontSize', 14)
-        xlabel('{\it v} (m s^{-1})', 'FontSize', 14)
+        xlabel('v (m s^{-1})', 'FontSize', 14)
         % text(18, 0.6, 'Debris', 'FontSize', 20)
         % text(-30, 0.6, 'Rain', 'FontSize', 20)
         % text(-48, 0.95, 's\rho_{HV}', 'FontSize', 14)
@@ -692,7 +827,7 @@ if x == 1
         plot(vvx(:), squeeze(obj_class(:,rind,azind)), 'k', 'LineWidth', 1.1)
         grid on
         title('(c) Scatterer classification', 'FontSize', 14)
-        xlabel('{\it v} (m s^{-1})', 'FontSize', 14)
+        xlabel('v (m s^{-1})', 'FontSize', 14)
         xlim([-va, va])
         ylim([-0.5,1.5])
         yticks([0 1])
@@ -707,6 +842,7 @@ if x == 1
     end
     
     
+    % Plot of DCA classification w/ original and filtered PSDs + velocities
     figure(11)
     clf
     
@@ -723,7 +859,7 @@ if x == 1
     annotation('textbox', [0.07 0.73 0.1 0.05], 'String', 'Rain', 'FontSize', 15, 'EdgeColor', 'none')
     
     subplot(3,1,2)
-    semilogy(vvx(:), squeeze(abs(psd_old(:,rind,azind))), 'k', 'LineWidth', 1.1)
+    semilogy(vvx(:), squeeze(abs(PSD.old(:,rind,azind))), 'k', 'LineWidth', 1.1)
     hold on
     semilogy(ones(1,2)*vr_old(rind,azind), [1e0 1e12], ':b', 'LineWidth', 2.1)
     semilogy(ones(1,2)*vr_truth(rind,azind), [1e0 1e12], ':k', 'LineWidth', 2.1)
@@ -745,7 +881,7 @@ if x == 1
     text(text_pos2, 1e2, ['v_{truth} = ' num2str(round(vr_truth(rind,azind),1)) ' m s^{-1}'], 'FontSize', 15)
     
     subplot(3,1,3)
-    semilogy(vvx(:), squeeze(abs(psd_filt(:,rind,azind))), 'k', 'LineWidth', 1.5)
+    semilogy(vvx(:), squeeze(abs(PSD.dca(:,rind,azind))), 'k', 'LineWidth', 1.5)
     hold on
     semilogy(ones(1,2)*vr_new.dca(rind,azind), [1e0 1e12], ':r', 'LineWidth', 2.1)
     semilogy(ones(1,2)*vr_truth(rind,azind), [1e0 1e12], ':k', 'LineWidth', 2.1)
@@ -774,6 +910,7 @@ if x == 1
     
     
     
+    % Plot of sPHV variance w/ original and filtered PSDs + velocities
     figure(12)
     clf
     
@@ -787,7 +924,7 @@ if x == 1
     
     
     subplot(3,1,2)
-    semilogy(vvx(:), squeeze(abs(psd_old(:,rind,azind))), 'k', 'LineWidth', 1.1)
+    semilogy(vvx(:), squeeze(abs(PSD.old(:,rind,azind))), 'k', 'LineWidth', 1.1)
     hold on
     semilogy(ones(1,2)*vr_old(rind,azind), [1e0 1e12], ':b', 'LineWidth', 2.1)
     semilogy(ones(1,2)*vr_truth(rind,azind), [1e0 1e12], ':k', 'LineWidth', 2.1)
@@ -810,7 +947,7 @@ if x == 1
     
     
     subplot(3,1,3)
-    semilogy(vvx(:), squeeze(abs(psd_new_var(:,rind,azind))), 'k', 'LineWidth', 1.1)
+    semilogy(vvx(:), squeeze(abs(PSD.var(:,rind,azind))), 'k', 'LineWidth', 1.1)
     hold on
     semilogy(ones(1,2)*vr_new.var(rind,azind), [1e0 1e12], ':r', 'LineWidth', 2.1)
     semilogy(ones(1,2)*vr_truth(rind,azind), [1e0 1e12], ':k', 'LineWidth', 2.1)
@@ -839,6 +976,7 @@ if x == 1
     
     
     
+    % Plot of rain aggregation w/ original and filtered PSDs + velocities
     figure(13)
     clf
     
@@ -852,7 +990,7 @@ if x == 1
     
     
     subplot(3,1,2)
-    semilogy(vvx(:), squeeze(abs(psd_old(:,rind,azind))), 'k', 'LineWidth', 1.1)
+    semilogy(vvx(:), squeeze(abs(PSD.old(:,rind,azind))), 'k', 'LineWidth', 1.1)
     hold on
     semilogy(ones(1,2)*vr_old(rind,azind), [1e0 1e12], ':b', 'LineWidth', 2.1)
     semilogy(ones(1,2)*vr_truth(rind,azind), [1e0 1e12], ':k', 'LineWidth', 2.1)
@@ -875,7 +1013,7 @@ if x == 1
     
     
     subplot(3,1,3)
-    semilogy(vvx(:), squeeze(abs(psd_new_agg(:,rind,azind))), 'k', 'LineWidth', 1.1)
+    semilogy(vvx(:), squeeze(abs(PSD.agg(:,rind,azind))), 'k', 'LineWidth', 1.1)
     hold on
     semilogy(ones(1,2)*vr_new.agg(rind,azind), [1e0 1e12], ':r', 'LineWidth', 2.1)
     semilogy(ones(1,2)*vr_truth(rind,azind), [1e0 1e12], ':k', 'LineWidth', 2.1)
@@ -905,6 +1043,7 @@ if x == 1
     
     if false
         
+        % Plots of sZDR + rain and debris membership
         figure(14)
         clf
         
@@ -928,7 +1067,7 @@ if x == 1
         %xlabel('{\it v} (m s^{-1})', 'FontSize', 14)
         
         subplot(3,1,2)
-        plot(vvx(:), squeeze(memf.zdr_rain(:,rind,azind)), 'k', 'LineWidth', 1)
+        plot(vvx(:), squeeze(memf.rain.zdr(:,rind,azind)), 'k', 'LineWidth', 1)
         xlim([-va va])
         ylim([-0.2 1.2])
         yticks(0:0.2:1)
@@ -937,7 +1076,7 @@ if x == 1
         %xlabel('{\it v} (m s^{-1})', 'FontSize', 14)
         
         subplot(3,1,3)
-        plot(vvx(:), squeeze(memf.zdr_debr(:,rind,azind)), 'k', 'LineWidth', 1)
+        plot(vvx(:), squeeze(memf.debr.zdr(:,rind,azind)), 'k', 'LineWidth', 1)
         xlim([-va va])
         ylim([-0.2 1.2])
         yticks(0:0.2:1)
@@ -950,7 +1089,7 @@ if x == 1
         end
         
         
-        
+        % Plots of sPHV + rain and debris membership
         figure(15)
         clf
         
@@ -974,7 +1113,7 @@ if x == 1
         %xlabel('{\it v} (m s^{-1})', 'FontSize', 14)
         
         subplot(3,1,2)
-        plot(vvx(:), squeeze(memf.phv_rain(:,rind,azind)), 'k', 'LineWidth', 1)
+        plot(vvx(:), squeeze(memf.rain.phv(:,rind,azind)), 'k', 'LineWidth', 1)
         xlim([-va va])
         ylim([-0.2 1.2])
         yticks(0:0.2:1)
@@ -983,7 +1122,7 @@ if x == 1
         %xlabel('{\it v} (m s^{-1})', 'FontSize', 14)
         
         subplot(3,1,3)
-        plot(vvx(:), squeeze(memf.phv_debr(:,rind,azind)), 'k', 'LineWidth', 1)
+        plot(vvx(:), squeeze(memf.debr.phv(:,rind,azind)), 'k', 'LineWidth', 1)
         xlim([-va va])
         ylim([-0.2 1.2])
         yticks(0:0.2:1)
@@ -996,7 +1135,7 @@ if x == 1
         end
         
         
-        
+        % Plots of sPHV variance + rain and debris membership
         figure(16)
         clf
         
@@ -1020,7 +1159,7 @@ if x == 1
         %xlabel('{\it v} (m s^{-1})', 'FontSize', 14)
         
         subplot(3,1,2)
-        plot(vvx(:), squeeze(memf.pvar_rain(:,rind,azind)), 'k', 'LineWidth', 1)
+        plot(vvx(:), squeeze(memf.rain.pvar(:,rind,azind)), 'k', 'LineWidth', 1)
         xlim([-va va])
         ylim([-0.2 1.2])
         yticks(0:0.2:1)
@@ -1029,7 +1168,7 @@ if x == 1
         %xlabel('{\it v} (m s^{-1})', 'FontSize', 14)
         
         subplot(3,1,3)
-        plot(vvx(:), squeeze(memf.pvar_debr(:,rind,azind)), 'k', 'LineWidth', 1)
+        plot(vvx(:), squeeze(memf.debr.pvar(:,rind,azind)), 'k', 'LineWidth', 1)
         xlim([-va va])
         ylim([-0.2 1.2])
         yticks(0:0.2:1)
@@ -1042,8 +1181,8 @@ if x == 1
         end
         
         
-        
-        
+        % IMPORTANT!
+        % Plots of filtered PSDs + truth/original/corrected velocities
         figure(17)
         
         subplot(3,1,1)
@@ -1051,7 +1190,7 @@ if x == 1
         hold on
         semilogy(ones(1,2)*vr_new.dca(rind,azind), [1e0 1e15], ':r', 'LineWidth', 2)
         semilogy(ones(1,2)*vr_old(rind,azind), [1e0 1e15], ':b', 'LineWidth', 2)
-        semilogy(vvx(:), squeeze(abs(psd_filt(:,rind,azind))), 'k', 'LineWidth', 2)
+        semilogy(vvx(:), squeeze(abs(PSD.dca(:,rind,azind))), 'k', 'LineWidth', 2)
         hold off
         %xlabel('{\it v} (m s^{-1})', 'FontSize', 14)
         ylabel('sS_H', 'FontSize', 14)
@@ -1068,7 +1207,7 @@ if x == 1
         hold on
         semilogy(ones(1,2)*vr_new.var(rind,azind), [1e0 1e15], ':r', 'LineWidth', 2)
         semilogy(ones(1,2)*vr_old(rind,azind), [1e0 1e15], ':b', 'LineWidth', 2)
-        semilogy(vvx(:), squeeze(abs(psd_new_var(:,rind,azind))), 'k', 'LineWidth', 1)
+        semilogy(vvx(:), squeeze(abs(PSD.var(:,rind,azind))), 'k', 'LineWidth', 1)
         hold off
         %xlabel('{\it v} (m s^{-1})', 'FontSize', 14)
         ylabel('sS_H', 'FontSize', 14)
@@ -1084,7 +1223,7 @@ if x == 1
         hold on
         semilogy(ones(1,2)*vr_new.agg(rind,azind), [1e0 1e15], ':r', 'LineWidth', 2)
         semilogy(ones(1,2)*vr_old(rind,azind), [1e0 1e15], ':b', 'LineWidth', 2)
-        semilogy(vvx(:), squeeze(abs(psd_new_agg(:,rind,azind))), 'k', 'LineWidth', 1)
+        semilogy(vvx(:), squeeze(abs(PSD.agg(:,rind,azind))), 'k', 'LineWidth', 1)
         hold off
         xlabel('{\it v} (m s^{-1})', 'FontSize', 14)
         ylabel('sS_H', 'FontSize', 14)
@@ -1115,14 +1254,16 @@ if x == 1
         dn_str = [dnum(1:end-3) ',' dnum(end-2:end)];
     end
     
-    figure(1)
+    
+    % Plot of aggregation-filtered PSD + truth/original/corrected velocity
+    figure(20)
     clf
     
     semilogy(ones(1,2)*vr_truth(rind,azind), [1e0 1e15], ':k', 'LineWidth', 2.1)
     hold on
     semilogy(ones(1,2)*vr_new.agg(rind,azind), [1e0 1e15], ':r', 'LineWidth', 2.1)
     semilogy(ones(1,2)*vr_old(rind,azind), [1e0 1e15], ':b', 'LineWidth', 2.1)
-    semilogy(vvx(:), squeeze(abs(psd_new_agg(:,rind,azind))), 'k', 'LineWidth', 1)
+    semilogy(vvx(:), squeeze(abs(PSD.agg(:,rind,azind))), 'k', 'LineWidth', 1)
     hold off
     xlabel('{\it v} (m s^{-1})', 'FontSize', 16)
     %ylabel('sS_H', 'FontSize', 14)
@@ -1142,33 +1283,35 @@ if x == 1
     
     if false
     
+    % IMPORTANT!
+    % Scatter plots of velocity bias by bulk PHV
     figure(18)
     
     subplot(2,2,1)
-    %scatter(reshape(params.phv,[],1), reshape(dv_uncorr,[],1), '.')
-    scatter(reshape(params.phv,[],1), abs(reshape(dv_uncorr,[],1)), '.')
+    %scatter(reshape(params.phv,[],1), reshape(dv.uncorr.data,[],1), '.')
+    scatter(reshape(params.phv,[],1), abs(reshape(dv.uncorr.data,[],1)), '.')
     title('(a) No correction', 'FontSize', 14)
     xlabel('\rho_{HV}', 'FontSize', 14)
     ylabel('v_{bias} (m s^{-1})', 'FontSize', 14)
     xlim([0 1])
     
     subplot(2,2,2)
-    %scatter(reshape(params.phv,[],1), reshape(dv_corr,[],1), '.')
-    scatter(reshape(params.phv,[],1), abs(reshape(dv_corr,[],1)), '.')
+    %scatter(reshape(params.phv,[],1), reshape(dv.dca.data,[],1), '.')
+    scatter(reshape(params.phv,[],1), abs(reshape(dv.dca.data,[],1)), '.')
     title('(b) DCA correction', 'FontSize', 14)
     xlabel('\rho_{HV}', 'FontSize', 14)
     ylabel('v_{bias} (m s^{-1})', 'FontSize', 14)
     
     subplot(2,2,3)
-    %scatter(reshape(params.phv,[],1), reshape(dv_corr_var,[],1), '.')
-    scatter(reshape(params.phv,[],1), abs(reshape(dv_corr_var,[],1)), '.')
+    %scatter(reshape(params.phv,[],1), reshape(dv.var.data,[],1), '.')
+    scatter(reshape(params.phv,[],1), abs(reshape(dv.var.data,[],1)), '.')
     title('(c) Variance correction', 'FontSize', 14)
     xlabel('\rho_{HV}', 'FontSize', 14)
     ylabel('v_{bias} (m s^{-1})', 'FontSize', 14)
     
     subplot(2,2,4)
-    %scatter(reshape(params.phv,[],1), reshape(dv_corr_agg,[],1), '.')
-    scatter(reshape(params.phv,[],1), abs(reshape(dv_corr_agg,[],1)), '.')
+    %scatter(reshape(params.phv,[],1), reshape(dv.agg.data,[],1), '.')
+    scatter(reshape(params.phv,[],1), abs(reshape(dv.agg.data,[],1)), '.')
     title('(d) Aggregation correction', 'FontSize', 14)
     xlabel('\rho_{HV}', 'FontSize', 14)
     ylabel('v_{bias} (m s^{-1})', 'FontSize', 14)
@@ -1178,33 +1321,34 @@ if x == 1
     axis off
     
     
-    
+    % IMPORTANT!
+    % Scatter plots of velocity bias by truth velocity
     figure(19)
     
     subplot(2,2,1)
     %scatter(reshape(vr_truth,[],1), reshape(dv_uncorr,[],1), '.')
-    scatter(reshape(vr_truth,[],1), abs(reshape(dv_uncorr,[],1)), '.')
+    scatter(reshape(vr_truth,[],1), abs(reshape(dv.uncorr.data,[],1)), '.')
     title('(a) No correction', 'FontSize', 14)
     xlabel('v_{truth} (m s^{-1})', 'FontSize', 14)
     ylabel('v_{bias} (m s^{-1})', 'FontSize', 14)
     
     subplot(2,2,2)
-    %scatter(reshape(vr_truth,[],1), reshape(dv_corr,[],1), '.')
-    scatter(reshape(vr_truth,[],1), abs(reshape(dv_corr,[],1)), '.')
+    %scatter(reshape(vr_truth,[],1), reshape(dv.dca.data,[],1), '.')
+    scatter(reshape(vr_truth,[],1), abs(reshape(dv.dca.data,[],1)), '.')
     title('(b) DCA correction', 'FontSize', 14)
     xlabel('v_{truth} (m s^{-1})', 'FontSize', 14)
     ylabel('v_{bias} (m s^{-1})', 'FontSize', 14)
     
     subplot(2,2,3)
-    %scatter(reshape(vr_truth,[],1), reshape(dv_corr_var,[],1), '.')
-    scatter(reshape(vr_truth,[],1), abs(reshape(dv_corr_var,[],1)), '.')
+    %scatter(reshape(vr_truth,[],1), reshape(dv.var.data,[],1), '.')
+    scatter(reshape(vr_truth,[],1), abs(reshape(dv.var.data,[],1)), '.')
     title('(c) Variance correction', 'FontSize', 14)
     xlabel('v_{truth} (m s^{-1})', 'FontSize', 14)
     ylabel('v_{bias} (m s^{-1})', 'FontSize', 14)
     
     subplot(2,2,4)
-    %scatter(reshape(vr_truth,[],1), reshape(dv_corr_agg,[],1), '.')
-    scatter(reshape(vr_truth,[],1), abs(reshape(dv_corr_agg,[],1)), '.')
+    %scatter(reshape(vr_truth,[],1), reshape(dv.agg.data,[],1), '.')
+    scatter(reshape(vr_truth,[],1), abs(reshape(dv.agg.data,[],1)), '.')
     title('(d) Aggregation correction', 'FontSize', 14)
     xlabel('v_{truth} (m s^{-1})', 'FontSize', 14)
     ylabel('v_{bias} (m s^{-1})', 'FontSize', 14)
@@ -1221,20 +1365,6 @@ end
 
 if x == 2
     
-    i1 = find(vr_new.dca.*vr_unfolded < 0 & vr_unfolded < 0);
-    i2 = find(vr_new.dca.*vr_unfolded < 0 & vr_unfolded > 0);
-    vr_new.dca(i1) = vr_new.dca(i1) - 2*va;
-    vr_new.dca(i2) = vr_new.dca(i2) + 2*va;
-    
-    i1 = find(vr_new.var.*vr_unfolded < 0 & vr_unfolded < 0);
-    i2 = find(vr_new.var.*vr_unfolded < 0 & vr_unfolded > 0);
-    vr_new.var(i1) = vr_new.var(i1) - 2*va;
-    vr_new.var(i2) = vr_new.var(i2) + 2*va;
-    
-    i1 = find(vr_new.agg.*vr_unfolded < 0 & vr_unfolded < 0);
-    i2 = find(vr_new.agg.*vr_unfolded < 0 & vr_unfolded > 0);
-    vr_new.agg(i1) = vr_new.agg(i1) - 2*va;
-    vr_new.agg(i2) = vr_new.agg(i2) + 2*va;
     
     
     figure(1)
@@ -1391,7 +1521,7 @@ if x == 2
     xlim([-va va])
     ylim([-15 15])
     yyaxis right
-    semilogy(vvx, squeeze(psd_old(:,ri,azi)), ':k', 'LineWidth', 0.7)
+    semilogy(vvx, squeeze(PSD.old(:,ri,azi)), ':k', 'LineWidth', 0.7)
     ylabel('sS_H')
     title('(a) sZ_{DR}, sS_H', 'FontSize', 14)
     
@@ -1406,7 +1536,7 @@ if x == 2
     ylabel('s\rho_{HV}')
     xlim([-va va])
     yyaxis right
-    semilogy(vvx, squeeze(psd_old(:,ri,azi)), ':k', 'LineWidth', 0.7)
+    semilogy(vvx, squeeze(PSD.old(:,ri,azi)), ':k', 'LineWidth', 0.7)
     ylabel('sS_H')
     title('(b) s\rho_{HV}, sS_H', 'FontSize', 14)
     
@@ -1418,15 +1548,3 @@ end
 
 
 
-%% Save variables
-
-if var_save_flag
-    if x == 1
-        save([sim_dir '/dpsd-' erase(fname,'sim-'), '.mat'], 'szdr', 'sphv', 'svar',...
-            'spsd', 'iqh', 'iqv', 'vr_old', 'vr_new', 'vr_truth', 'obj_class',...
-            'vvx', 'params');
-    elseif x == 2
-        save([data_dir '/dpsd-' fname, '.mat'], 'szdr', 'sphv', 'svar', 'spsd',...
-            'iqh', 'iqv', 'vr_old', 'vr_new', 'obj_class', 'vvx', 'params');
-    end
-end

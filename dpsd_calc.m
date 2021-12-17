@@ -134,7 +134,7 @@ sZDR.c(sZDR.c < 0) = real(sZDR.c(sZDR.c < 0));
 
 
 % Average over independent rlzs
-if dm3 == 1
+if dm3 == 1 %if IQ emulator w/ multiple realizations per "gate"
     sSH.f = squeeze(mean(sSH.n, 2));
     sSV.f = squeeze(mean(sSV.n, 2));
     sSX.f = squeeze(mean(sSX.n, 2));
@@ -142,7 +142,7 @@ if dm3 == 1
     sPHV.f = squeeze(mean(sPHV.n, 2));
     sZDR.cf = squeeze(mean(sZDR.c, 2));
     sPHV.cf = squeeze(mean(sPHV.c, 2));
-else
+else %if simradar
     sSH.f = sSH.n;
     sSV.f = sSV.n;
     sSX.f = sSX.n;

@@ -2,9 +2,10 @@
 %filename = blib('choosefile', sim_dir, '*.mat');
 
 les = 'twocell';
-simdate = '200630';
-rain_concept = 'DCU';
-debr_concept = 'TCU';
+dd_date = '210614';
+nd_date = '211005';
+rain_concept = 'U';
+debr_concept = 'TC';
 mult_concept = 'DCU';
 dtypes = 0:14;
 dnums = [10000 100000 1000000];
@@ -18,7 +19,7 @@ for dt = dtypes
     if dt == 0 % no debris
         dn = [];
         concept = rain_concept;
-        sim_dir = ['~/Documents/sims/' les '/' simdate '/nodebris/'];
+        sim_dir = ['~/Documents/sims/' les '/' nd_date '/nodebris/'];
         fname = ['sim-*-', concept, '-nodebris.mat'];
         mat_files = dir([sim_dir fname]);
         nels = length(mat_files);
@@ -58,7 +59,7 @@ for dt = dtypes
     else % with debris
         concept = mult_concept;
         for dn = dnums
-            sim_dir = ['~/Documents/sims/' les '/' simdate '/debris' num2str(dt) '/'];
+            sim_dir = ['~/Documents/sims/' les '/' dd_date '/debris' num2str(dt) '/'];
             fname = ['sim-*-', concept, '-d', num2str(dt), 'n', num2str(dn), '.mat'];
             mat_files = dir([sim_dir fname]);
             nels = length(mat_files);
