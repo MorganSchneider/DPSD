@@ -208,16 +208,20 @@ azc = nanmedian(az_mat(itds==1));
 xc = rc * sind(azc);
 yc = rc * cosd(azc);
 
-rmin = rc - 3;
-rmax = rc + 3;
-amin = azc - 10;
-amax = azc + 10;
+rmin = floor(rc - 5);
+rmax = ceil(rc + 5);
+amin = floor(prctile(az_mat(itds==1),10));
+amax = ceil(prctile(az_mat(itds==1),90));
 
-% need to add iqh, iqv to this structure
-[ri,ai] = find(r_mat>=rmin & r_mat<=rmax & az_mat>=amin & az_mat<=amax);
-tor = struct('xx', xx(ri,ai), 'yy', yy(ri,ai), 'zh', zh(ri,ai),...
-    'vr', vr(ri,ai), 'zdr', zdr(ri,ai), 'rhohv', rhohv(ri,ai));
+itor = 
 
+tor = struct('xx', [], 'yy', [], 'zh', [], 'vr', [], 'zdr', [], 'rhohv', []);
+tor.xx = xx(r_mat>=rmin & r_mat<=rmax & az_mat>=amin & az_mat<=amax);
+tor.yy = yy(r_mat>=rmin & r_mat<=rmax & az_mat>=amin & az_mat<=amax);
+tor.zh = zh(r_mat>=rmin & r_mat<=rmax & az_mat>=amin & az_mat<=amax);
+tor.vr = vr(r_mat>=rmin & r_mat<=rmax & az_mat>=amin & az_mat<=amax);
+tor.zdr = zdr(r_mat>=rmin & r_mat<=rmax & az_mat>=amin & az_mat<=amax);
+tor.rhohv = rhohv(r_mat>=rmin & r_mat<=rmax & az_mat>=amin & az_mat<=amax);
 
 
 %%
@@ -286,7 +290,7 @@ colormap(gca, blib('rgmap2'))
 colorbar
 shading flat
 hold on
-scatter(xc, yc, 80, '.k')
+scatter(xc, yc, 100, '.k')
 hold off
 xlim([-15 0])
 ylim([5 15])
@@ -298,7 +302,7 @@ colormap(gca, blib('nwsdmap'))
 colorbar
 shading flat
 hold on
-scatter(xc, yc, 80, '.k')
+scatter(xc, yc, 100, '.k')
 hold off
 xlim([-15 0])
 ylim([5 15])
@@ -310,7 +314,7 @@ colormap(gca, blib('nwsrmap'))
 colorbar
 shading flat
 hold on
-scatter(xc, yc, 80, '.k')
+scatter(xc, yc, 100, '.k')
 hold off
 xlim([-15 0])
 ylim([5 15])
@@ -325,9 +329,6 @@ caxis([0 70])
 colormap(gca, blib('zmap'))
 colorbar
 shading flat
-hold on
-scatter(xc, yc, 400, '.k')
-hold off
 
 subplot(2,2,2)
 pcolor(tor.xx, tor.yy, tor.vr)
@@ -335,9 +336,6 @@ caxis([-va va])
 colormap(gca, blib('rgmap2'))
 colorbar
 shading flat
-hold on
-scatter(xc, yc, 400, '.k')
-hold off
 
 subplot(2,2,3)
 pcolor(tor.xx, tor.yy, tor.zdr)
@@ -345,9 +343,6 @@ caxis([-5 5])
 colormap(gca, blib('nwsdmap'))
 colorbar
 shading flat
-hold on
-scatter(xc, yc, 400, '.k')
-hold off
 
 subplot(2,2,4)
 pcolor(tor.xx, tor.yy, tor.rhohv)
@@ -355,11 +350,12 @@ caxis([0 1])
 colormap(gca, blib('nwsrmap'))
 colorbar
 shading flat
-hold on
-scatter(xc, yc, 400, '.k')
-hold off
 
 
+% iqh_full = iqh;
+% iqv_full = iqv;
+% iqh_tds = iqh(tds.xinds, tds.yinds, :);
+% iqv_tds = iqv(tds.xinds, tds.yinds, :);
 
 % save(['Documents/code/obsdata/KOUN_data_', num2str(el,'%.1f'), '.mat'],...
 %    'iqh_tds', 'iqv_tds', 'vr', 'vr_unfolded', 'xx', 'yy', 'zz', 'zh', 'zdr',...
@@ -367,3 +363,5 @@ hold off
 
 % save(['Documents/code/obsdata/KOUN_' obsdate '_' num2str(el,'%.1f') '.mat'],...
 %     'iqh', 'iqv', 'xx', 'yy', 'zz', 'vr', 'zh', 'zdr', 'rhohv', 'va')
+
+%clear vr vr_unfolded

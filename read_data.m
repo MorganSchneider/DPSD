@@ -1,7 +1,17 @@
 %clear all
+if ~exist('obsdate','var')
+    obsdate = '20130520';
+end
 
-load('koun_data_orig.mat')
-fEL_desired = 0.5; %deg
+if ~exist('fEL_desired','var')
+    if exist('el','var')
+        fEL_desired = el;
+    else
+        fEL_desired = 0.5; %deg - default
+    end
+end
+
+load(['KOUN_' obsdate '.mat'])
 pulses_per_rad = 64;
 EL_persist = 100;
 ptot = size(pulse,2);
@@ -43,8 +53,6 @@ while (~cut_started || (cut_started && ~cut_ended)) && pind1 < ptot
         rind = rind - 1;
     end
 end
-
-
 
 
        

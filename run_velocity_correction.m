@@ -35,7 +35,7 @@ end
 
 % Load IQ data
 if ~external_call
-    plot_flag = 0;
+    plot_flag = 1;
     var_save_flag = 1;
     plot_save_flag = 0;
     
@@ -47,7 +47,7 @@ end
 if x == 1 %if SimRadar
     if ~external_call
         LES = 'twocell';
-        base_dir = ['~/Documents/sims/' LES];
+        base_dir = ['Documents/sims/' LES];
         data_dir = uigetdir(base_dir); % Location of SimRadar output files
         filename = blib('choosefile', data_dir, 'sim-*.mat');
     end
@@ -67,14 +67,14 @@ if x == 1 %if SimRadar
     Ts = dat.params.prt;
     lambda = dat.params.lambda;
     
-    img_dir = ['~/Documents/imgs/' LES '/d' dtype '/DPSD/'];
+    img_dir = ['Documents/imgs/' LES '/d' dtype '/DPSD/'];
     
     % Put all the bulk variables from checkiq.m into one structure
     params = struct('zh', zh, 'zdr', zdr, 'phv', rhohv, 'xx', xx, 'yy', yy, 'zz', zz, 'va', va);
     
 elseif x == 2 %if KOUN
     if ~external_call
-        data_dir = '~/Documents/code/obsdata/';
+        data_dir = 'Documents/code/obsdata/';
         filename = blib('choosefile', data_dir, '*.mat');
         
         if ~isfile(filename)
@@ -96,11 +96,11 @@ elseif x == 2 %if KOUN
     zdr = zdr(tds.xinds, tds.yinds);
     rhohv = rhohv(tds.xinds, tds.yinds);
     vr = vr(tds.xinds, tds.yinds);
-    vr_unfolded = vr_unfolded(tds.xinds, tds.yinds);
+    % vr_unfolded = vr_unfolded(tds.xinds, tds.yinds);
     
-    img_dir = '~/Documents/imgs/obsdata/';
+    img_dir = 'Documents/imgs/obsdata/';
     
-    % Put all the bulk variables from checkiq.m into one structure
+    % Put all the bulk variables into one structure
     params = struct('zh', zh, 'zdr', zdr, 'phv', rhohv, 'xx', xx, 'yy', yy, 'zz', zz, 'va', va);
     
 end
@@ -213,25 +213,30 @@ if x == 1
         'prc75', prctile(vr_new.agg - vr_truth, 75, 'all'));
     
 elseif x == 2
+    vr_new.unfolded.dca = vr_new.dca;
+    vr_new.unfolded.var = vr_new.var;
+    vr_new.unfolded.agg = vr_new.agg;
+
     i1 = find(vr_new.dca.*vr_unfolded < 0 & vr_unfolded < 0);
     i2 = find(vr_new.dca.*vr_unfolded < 0 & vr_unfolded > 0);
-    vr_new.dca(i1) = vr_new.dca(i1) - 2*va;
-    vr_new.dca(i2) = vr_new.dca(i2) + 2*va;
+    vr_new.unfolded.dca(i1) = vr_new.dca(i1) - 2*va;
+    vr_new.unfolded.dca(i2) = vr_new.dca(i2) + 2*va;
     
     i1 = find(vr_new.var.*vr_unfolded < 0 & vr_unfolded < 0);
     i2 = find(vr_new.var.*vr_unfolded < 0 & vr_unfolded > 0);
-    vr_new.var(i1) = vr_new.var(i1) - 2*va;
-    vr_new.var(i2) = vr_new.var(i2) + 2*va;
+    vr_new.unfolded.var(i1) = vr_new.var(i1) - 2*va;
+    vr_new.unfolded.var(i2) = vr_new.var(i2) + 2*va;
     
     i1 = find(vr_new.agg.*vr_unfolded < 0 & vr_unfolded < 0);
     i2 = find(vr_new.agg.*vr_unfolded < 0 & vr_unfolded > 0);
-    vr_new.agg(i1) = vr_new.agg(i1) - 2*va;
-    vr_new.agg(i2) = vr_new.agg(i2) + 2*va;
+    vr_new.unfolded.agg(i1) = vr_new.agg(i1) - 2*va;
+    vr_new.unfolded.agg(i2) = vr_new.agg(i2) + 2*va;
     
-    dv = struct('dca', vr_new.dca - vr_unfolded,...
-                'var', vr_new.var - vr_unfolded,...
-                'agg', vr_new.agg - vr_unfolded);
-    
+    dv = struct('unfolded', [], 'dca', vr_new.dca - vr_old,...
+        'var', vr_new.var - vr_old, 'agg', vr_new.agg - vr_old);
+    dv.unfolded = struct('dca', vr_new.unfolded.dca - vr_unfolded,...
+                'var', vr_new.unfolded.var - vr_unfolded,...
+                'agg', vr_new.unfolded.agg - vr_unfolded);
 end
 
 
@@ -371,7 +376,7 @@ if x == 1
         xlabel('x (m)', 'FontSize', 14)
         ylabel('y (m)', 'FontSize', 14)
         
-        set(gcf, 'Units', 'inches', 'Position', [10 10 12 12])
+        set(gcf, 'Units', 'inches', 'Position', [1 1 12 12])
         axes('Unit', 'Normalized', 'Position', [0.5 0.03 0.01 0.01])
         title(['Debris type ' dtype ', n=' dnum ', tilt=' elev '^o'], 'FontSize', 14);
         axis off
@@ -382,8 +387,9 @@ if x == 1
         
     end
     
+%%
     % PPIs of truth, original, and aggregation-corrected velocity
-    figure(2)
+    figure(3)
     clf
     
     ha = subplot(2,2,[1,2]);
@@ -393,41 +399,41 @@ if x == 1
     shading flat
     c = colorbar;
     c.Label.String = 'm s^{-1}';
-    c.Label.FontSize = 13;
+    c.Label.FontSize = 12;
     c.Label.VerticalAlignment = 'middle';
-    title('True Velocity', 'FontSize', 16)
-    xlabel('x (m)', 'FontSize', 14)
-    ylabel('y (m)', 'FontSize', 14)
+    title('Truth v_r', 'FontSize', 12)
+    xlabel('x (m)', 'FontSize', 12)
+    ylabel('y (m)', 'FontSize', 12)
     ha.Position = [0.3584 0.5838 0.2832 0.3412];
     
-    ha(2) = subplot(2,2,3);
+    ha(2) = subplot(2,2,4);
     hs(2) = pcolor(xx, yy, vr_new.agg(:,:,1));
     caxis([-1 1] * va)
     colormap(ha(2), blib('rgmap2'))
     shading flat
     c = colorbar;
     c.Label.String = 'm s^{-1}';
-    c.Label.FontSize = 13;
+    c.Label.FontSize = 12;
     c.Label.VerticalAlignment = 'middle';
-    title('Aggregation-Corrected Velocity', 'FontSize', 16)
-    xlabel('x (m)', 'FontSize', 14)
-    ylabel('y (m)', 'FontSize', 14)
+    title(['Corrected v_r (10,000 boards)'], 'FontSize', 12)
+    xlabel('x (m)', 'FontSize', 12)
+    ylabel('y (m)', 'FontSize', 12)
     
-    ha(5) = subplot(2,2,4);
+    ha(5) = subplot(2,2,3);
     hs(5) = pcolor(xx, yy, vr_old(:,:,1));
     caxis([-1 1] * va)
     colormap(ha(5), blib('rgmap2'))
     shading flat
     c = colorbar;
     c.Label.String = 'm s^{-1}';
-    c.Label.FontSize = 13;
+    c.Label.FontSize = 12;
     c.Label.VerticalAlignment = 'middle';
-    title('Uncorrected Velocity', 'FontSize', 16)
-    xlabel('x (m)', 'FontSize', 14)
-    ylabel('y (m)', 'FontSize', 14)
+    title(['Uncorrected v_r (10,000 boards)'], 'FontSize', 12)
+    xlabel('x (m)', 'FontSize', 12)
+    ylabel('y (m)', 'FontSize', 12)
     
-    set(gcf, 'Units', 'inches', 'Position', [6 8 11.5 7])
-    
+    set(gcf, 'Units', 'inches', 'Position', [1 1 8 5])
+%%
     if plot_save_flag
         print([img_dir 'vppi-agg-d' dtype 'n' dnum '-el' elev([1 3])], '-dpng')
     end
@@ -1451,7 +1457,7 @@ if x == 2
     axis off
     
     if plot_save_flag
-        print([img_dir 'vcorr-all-d' dtype 'n' dnum '-el' elev([1 3])], '-dpng')
+        %print([img_dir 'vcorr-all-d' dtype 'n' dnum '-el' elev([1 3])], '-dpng')
     end
     
     
@@ -1500,13 +1506,103 @@ if x == 2
     ylabel('y (m)', 'FontSize', 14)
     set(gca, 'DataAspect', [1 1 1])
     
+
+
+    figure(3)
+
+    ha = subplot(1,3,1);
+    pcolor(xx, yy, vr_old(:,:,1))
+    caxis([-1 1] * va)
+    colormap(ha, blib('rgmap2'))
+    shading flat
+    c = colorbar;
+    c.Label.String = 'm s^{-1}';
+    c.Label.FontSize = 13;
+    c.Label.VerticalAlignment = 'middle';
+    title('(a) Uncorrected v_r', 'FontSize', 14)
+    xlabel('x (km)', 'FontSize', 14)
+    ylabel('y (km)', 'FontSize', 14)
+    set(gca, 'DataAspect', [1 1 1])
+
+    ha(2) = subplot(1,3,2);
+    pcolor(xx, yy, vr_new.agg(:,:,1))
+    caxis([-1 1] * va)
+    colormap(ha(2), blib('rgmap2'))
+    shading flat
+    c = colorbar;
+    c.Label.String = 'm s^{-1}';
+    c.Label.FontSize = 13;
+    c.Label.VerticalAlignment = 'middle';
+    title('(b) Corrected v_r', 'FontSize', 14)
+    xlabel('x (km)', 'FontSize', 14)
+    ylabel('y (km)', 'FontSize', 14)
+    set(gca, 'DataAspect', [1 1 1])
+    
+    ha(3) = subplot(1,3,3);
+    pcolor(xx, yy, vr_new.agg(:,:,1) - vr_old(:,:,1))
+    caxis([-1 1] * va)
+    colormap(ha(3), blib('rbmap'))
+    shading flat
+    c = colorbar;
+    c.Label.String = 'm s^{-1}';
+    c.Label.FontSize = 13;
+    c.Label.VerticalAlignment = 'middle';
+    title('(c) Correction magnitude', 'FontSize', 14)
+    xlabel('x (m)', 'FontSize', 14)
+    ylabel('y (m)', 'FontSize', 14)
+    set(gca, 'DataAspect', [1 1 1])
+    
+    if false
+    ha(4) = subplot(2,3,4);
+    pcolor(xx, yy, vr_unfolded(:,:,1))
+    caxis([-1 1] * va)
+    colormap(ha(4), blib('rgmap2'))
+    shading flat
+    c = colorbar;
+    c.Label.String = 'm s^{-1}';
+    c.Label.FontSize = 13;
+    c.Label.VerticalAlignment = 'middle';
+    title('(d) Uncorrected, unfolded v_r', 'FontSize', 14)
+    xlabel('x (km)', 'FontSize', 14)
+    ylabel('y (km)', 'FontSize', 14)
+    set(gca, 'DataAspect', [1 1 1])
+    
+    ha(5) = subplot(2,3,5);
+    pcolor(xx, yy, vr_new.unfolded.agg(:,:,1))
+    caxis([-1 1] * va)
+    colormap(ha(5), blib('rgmap2'))
+    shading flat
+    c = colorbar;
+    c.Label.String = 'm s^{-1}';
+    c.Label.FontSize = 13;
+    c.Label.VerticalAlignment = 'middle';
+    title('(e) Corrected, unfolded v_r', 'FontSize', 14)
+    xlabel('x (km)', 'FontSize', 14)
+    ylabel('y (km)', 'FontSize', 14)
+    set(gca, 'DataAspect', [1 1 1])
+    
+    ha(6) = subplot(2,3,6);
+    pcolor(xx, yy, vr_new.unfolded.agg(:,:,1) - vr_unfolded(:,:,1))
+    caxis([-1 1] * va)
+    colormap(ha(6), blib('rbmap'))
+    shading flat
+    c = colorbar;
+    c.Label.String = 'm s^{-1}';
+    c.Label.FontSize = 13;
+    c.Label.VerticalAlignment = 'middle';
+    title('(f) Correction magnitude', 'FontSize', 14)
+    xlabel('x (m)', 'FontSize', 14)
+    ylabel('y (m)', 'FontSize', 14)
+    set(gca, 'DataAspect', [1 1 1])
+    end
+
     
     % aliased inds: 49,56 (8,14) IN; 48,61 (7,19) OUT
     % nonaliased inds: 48,54 (7,12) IN; 48,62 (7,20) or 48,60 (7,18) OUT
     ri = 7;
     azi = 20;
     
-    figure(3)
+    figure(4)
     clf
     
     subplot(2,1,1)
@@ -1539,7 +1635,7 @@ if x == 2
     semilogy(vvx, squeeze(PSD.old(:,ri,azi)), ':k', 'LineWidth', 0.7)
     ylabel('sS_H')
     title('(b) s\rho_{HV}, sS_H', 'FontSize', 14)
-    
+
     
     
     
